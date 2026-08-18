@@ -26,6 +26,14 @@ final class MergeBoardScene: SKScene {
     // 보드의 왼쪽 아래 시작점입니다.
     private var boardOrigin = CGPoint.zero
 
+    // 현재 손가락으로 잡고 있는 아이템입니다.
+    // touchesBegan에서 저장하고, touchesMoved에서 이 아이템만 움직입니다.
+    private var selectedItem: SKLabelNode?
+
+    // 아이템을 잡은 지점과 아이템 중심 사이의 거리입니다.
+    // 손가락을 아이템의 가장자리에서 눌러도 아이템이 갑자기 점프하지 않게 합니다.
+    private var dragOffset = CGPoint.zero
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -37,7 +45,7 @@ final class MergeBoardScene: SKScene {
     // MARK: - Board Drawing
 
     private func buildBoard() {
-        // 화면 크기가 바뀔 때 기존 칸과 아이템을 지운 뒤 다시 그립니다.
+        // 보드와 테스트 아이템을 처음 그립니다.
         boardNode.removeAllChildren()
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
@@ -113,8 +121,87 @@ final class MergeBoardScene: SKScene {
         item.horizontalAlignmentMode = .center
         item.position = positionForCell(column: column, row: row)
         item.zPosition = 1
+        item.name = "ingredient"
 
         boardNode.addChild(item)
+    }
+
+    // MARK: - Touch Drag
+
+    // 손가락을 화면에 댄 순간입니다.
+    // 터치 위치에 재료가 있으면, 그 재료를 이번 드래그의 대상으로 저장합니다.
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+
+        let touchLocation = touch.location(in: self)
+        guard let item = atPoint(touchLocation) as? SKLabelNode,
+              item.name == "ingredient" else {
+            return
+        }
+
+        selectedItem = item
+        dragOffset = CGPoint(
+            x: item.position.x - touchLocation.x,
+            y: item.position.y - touchLocation.y
+        )
+
+        // 드래그 중인 재료가 다른 칸보다 앞에 보이도록 합니다.
+        item.zPosition = 2
+    }
+
+    // 손가락을 누른 채 움직이는 동안 계속 호출됩니다.
+    // 선택된 재료를 손가락 위치로 옮기되, 재료 전체가 보드 안에 남도록 제한합니다.
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first, let item = selectedItem else { return }
+
+        let touchLocation = touch.location(in: self)
+        let proposedPosition = CGPoint(
+            x: touchLocation.x + dragOffset.x,
+            y: touchLocation.y + dragOffset.y
+        )
+
+        item.position = constrainedPosition(for: item, proposedPosition: proposedPosition)
+    }
+
+    // 손가락을 뗀 순간입니다.
+    // 아직은 스냅·머지 판정을 하지 않고, 드래그 대상만 해제합니다.
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        finishDragging()
+    }
+
+    // 전화 수신 등으로 터치가 취소되는 경우에도 드래그 상태를 정리합니다.
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        finishDragging()
+    }
+
+    private func finishDragging() {
+        selectedItem?.zPosition = 1
+        selectedItem = nil
+        dragOffset = .zero
+    }
+
+    private func constrainedPosition(
+        for item: SKLabelNode,
+        proposedPosition: CGPoint
+    ) -> CGPoint {
+        let boardBounds = CGRect(
+            x: boardOrigin.x,
+            y: boardOrigin.y,
+            width: cellSize * CGFloat(columns),
+            height: cellSize * CGFloat(rows)
+        )
+
+        // SKLabelNode의 실제 크기를 사용해, 이모지가 반쯤 잘려 나가지 않게 제한합니다.
+        let itemFrame = item.frame
+        let leftInset = item.position.x - itemFrame.minX
+        let rightInset = itemFrame.maxX - item.position.x
+        let bottomInset = item.position.y - itemFrame.minY
+        let topInset = itemFrame.maxY - item.position.y
+
+        return CGPoint(
+            x: min(max(proposedPosition.x, boardBounds.minX + leftInset), boardBounds.maxX - rightInset),
+            y: min(max(proposedPosition.y, boardBounds.minY + bottomInset), boardBounds.maxY - topInset)
+        )
     }
 
     // MARK: - Cell Position
