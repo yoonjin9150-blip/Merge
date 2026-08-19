@@ -85,6 +85,10 @@ final class MergeBoardScene: SKScene {
     // touchesBegan에서 저장하고, touchesMoved에서 이 아이템만 움직입니다.
     private var selectedItem: IngredientNode?
 
+    // 현재 드래그를 시작한 하나의 터치만 기억합니다.
+    // 드래그 도중 다른 손가락이 화면에 닿아도 선택 아이템이 바뀌지 않게 합니다.
+    private var activeTouch: UITouch?
+
     // 드래그를 시작한 칸입니다.
     // 손가락을 뗐을 때 빈 칸 이동·자리 교체·원래 칸 복귀를 판단하는 기준이 됩니다.
     private var originalCell: BoardCell?
@@ -112,6 +116,7 @@ final class MergeBoardScene: SKScene {
         boardNode.removeAllChildren()
         itemsByCell.removeAll()
         selectedItem = nil
+        activeTouch = nil
         originalCell = nil
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
@@ -216,7 +221,10 @@ final class MergeBoardScene: SKScene {
     // 손가락을 화면에 댄 순간입니다.
     // 터치 위치에 재료가 있으면, 그 재료를 이번 드래그의 대상으로 저장합니다.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
+        // 이미 한 아이템을 드래그 중이라면 추가 터치는 무시합니다.
+        guard activeTouch == nil, selectedItem == nil, let touch = touches.first else {
+            return
+        }
 
         let touchLocation = touch.location(in: self)
         guard let item = atPoint(touchLocation) as? IngredientNode,
@@ -224,6 +232,7 @@ final class MergeBoardScene: SKScene {
             return
         }
 
+        activeTouch = touch
         selectedItem = item
         originalCell = item.cell
         dragOffset = CGPoint(
@@ -238,9 +247,13 @@ final class MergeBoardScene: SKScene {
     // 손가락을 누른 채 움직이는 동안 계속 호출됩니다.
     // 선택된 재료를 손가락 위치로 옮기되, 재료 전체가 보드 안에 남도록 제한합니다.
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first, let item = selectedItem else { return }
+        guard let activeTouch,
+              touches.contains(where: { $0 === activeTouch }),
+              let item = selectedItem else {
+            return
+        }
 
-        let touchLocation = touch.location(in: self)
+        let touchLocation = activeTouch.location(in: self)
         let proposedPosition = CGPoint(
             x: touchLocation.x + dragOffset.x,
             y: touchLocation.y + dragOffset.y
@@ -252,6 +265,13 @@ final class MergeBoardScene: SKScene {
     // 손가락을 뗀 순간입니다.
     // 현재 아이템 중심에서 가장 가까운 칸을 찾고, 그 칸의 점유 상태에 따라 스냅합니다.
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // 드래그를 시작한 손가락을 뗐을 때만 드롭을 처리합니다.
+        // 도중에 추가로 닿은 다른 손가락을 떼는 것은 무시합니다.
+        guard let activeTouch,
+              touches.contains(where: { $0 === activeTouch }) else {
+            return
+        }
+
         guard let item = selectedItem, let startCell = originalCell else {
             finishDragging()
             return
@@ -264,6 +284,11 @@ final class MergeBoardScene: SKScene {
 
     // 전화 수신 등으로 터치가 취소되면 보드 상태를 바꾸지 않고 원래 칸으로 돌려놓습니다.
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let activeTouch,
+              touches.contains(where: { $0 === activeTouch }) else {
+            return
+        }
+
         if let item = selectedItem, let startCell = originalCell {
             item.position = positionForCell(startCell)
         }
@@ -294,17 +319,55 @@ final class MergeBoardScene: SKScene {
             return
         }
 
-        let canMergeLater = draggedItem.kind == targetItem.kind
-
-        // 같은 종류·같은 레벨은 나중에 머지될 대상입니다.
-        // 이번 작업에서는 머지를 제외했으므로 두 아이템과 보드 상태를 그대로 두고 복귀시킵니다.
-        guard !canMergeLater else {
-            draggedItem.position = positionForCell(startCell)
+        // 같은 재료이고 다음 단계가 있다면 두 아이템을 다음 단계 하나로 머지합니다.
+        // 이번 기술 검증에서는 밀 두 개만 밀가루로 바뀝니다.
+        if draggedItem.kind == targetItem.kind,
+           let nextKind = draggedItem.kind.nextKind {
+            mergeItems(
+                draggedItem,
+                with: targetItem,
+                from: startCell,
+                at: targetCell,
+                into: nextKind
+            )
             return
         }
 
-        // 다른 종류 또는 다른 레벨 아이템이 있다면 두 칸의 점유 상태를 교체합니다.
-        // 그 뒤 두 노드도 교체된 칸 중앙에 배치해 화면과 데이터가 같은 결과를 가리키게 합니다.
+        // 다른 종류·다른 단계이거나 다음 단계가 없는 아이템은 서로 위치를 교체합니다.
+        swapItems(draggedItem, with: targetItem, from: startCell, to: targetCell)
+    }
+
+    private func mergeItems(
+        _ draggedItem: IngredientNode,
+        with targetItem: IngredientNode,
+        from startCell: BoardCell,
+        at targetCell: BoardCell,
+        into nextKind: IngredientKind
+    ) {
+        // 먼저 두 칸의 기존 점유 정보를 제거합니다.
+        // 화면 노드를 제거한 뒤 딕셔너리에 남는 유령 아이템이 없도록 함께 갱신합니다.
+        itemsByCell[startCell] = nil
+        itemsByCell[targetCell] = nil
+
+        draggedItem.removeFromParent()
+        targetItem.removeFromParent()
+
+        // 머지 결과는 사용자가 드롭한 목표 칸에 하나만 생성합니다.
+        // addIngredient가 새 노드를 화면과 itemsByCell에 동시에 등록합니다.
+        addIngredient(
+            nextKind,
+            column: targetCell.column,
+            row: targetCell.row
+        )
+    }
+
+    private func swapItems(
+        _ draggedItem: IngredientNode,
+        with targetItem: IngredientNode,
+        from startCell: BoardCell,
+        to targetCell: BoardCell
+    ) {
+        // 두 칸의 점유 상태를 교체한 뒤 두 화면 노드도 각 칸 중앙에 배치합니다.
         itemsByCell[startCell] = targetItem
         itemsByCell[targetCell] = draggedItem
 
@@ -335,6 +398,7 @@ final class MergeBoardScene: SKScene {
 
     private func finishDragging() {
         selectedItem?.zPosition = 1
+        activeTouch = nil
         selectedItem = nil
         originalCell = nil
         dragOffset = .zero
