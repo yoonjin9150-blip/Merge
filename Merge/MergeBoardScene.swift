@@ -9,6 +9,33 @@ import SpriteKit
 
 final class MergeBoardScene: SKScene {
 
+    // 재료를 문자열이 아닌 타입으로 구분해 오타로 인한 판정 오류를 막습니다.
+    // 이번 기술 검증에서는 밀과 밀가루 한 단계만 정의합니다.
+    private enum IngredientKind {
+        case wheat
+        case flour
+
+        var emoji: String {
+            switch self {
+            case .wheat:
+                return "🌾"
+            case .flour:
+                return "🥣"
+            }
+        }
+
+        // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
+        // 밀가루 이후 단계는 전체 머지 트리를 구현할 때 추가합니다.
+        var nextKind: IngredientKind? {
+            switch self {
+            case .wheat:
+                return .flour
+            case .flour:
+                return nil
+            }
+        }
+    }
+
     // 보드 안 한 칸의 주소입니다.
     // 화면 위치(CGPoint)와 게임 규칙에서 사용하는 행·열을 구분하기 위해 별도 타입으로 둡니다.
     private struct BoardCell: Hashable {
@@ -18,21 +45,17 @@ final class MergeBoardScene: SKScene {
 
     // 화면에 보이는 이모지와 게임 규칙에 필요한 정보를 함께 보관하는 아이템 노드입니다.
     private final class IngredientNode: SKLabelNode {
-        let ingredientType: String
-        let level: Int
+        let kind: IngredientKind
         var cell: BoardCell
 
         init(
-            emoji: String,
-            ingredientType: String,
-            level: Int,
+            kind: IngredientKind,
             cell: BoardCell
         ) {
-            self.ingredientType = ingredientType
-            self.level = level
+            self.kind = kind
             self.cell = cell
             super.init()
-            text = emoji
+            text = kind.emoji
         }
 
         @available(*, unavailable)
@@ -152,34 +175,27 @@ final class MergeBoardScene: SKScene {
         // row 0은 화면에서 가장 위쪽인 1행입니다.
         // column 0은 왼쪽 첫 번째 칸입니다.
         // 아이템 위치를 바꾸고 싶다면 아래 column·row 숫자를 바꾸면 됩니다.
-        addIngredientEmoji(
-            "🌾",
-            ingredientType: "wheat",
-            level: 1,
+        addIngredient(
+            .wheat,
             column: 0,
             row: 0
         )
-        addIngredientEmoji(
-            "🌾",
-            ingredientType: "wheat",
-            level: 1,
+        addIngredient(
+            .wheat,
             column: 1,
             row: 0
         )
     }
 
-    private func addIngredientEmoji(
-        _ emoji: String,
-        ingredientType: String,
-        level: Int,
+    @discardableResult
+    private func addIngredient(
+        _ kind: IngredientKind,
         column: Int,
         row: Int
-    ) {
+    ) -> IngredientNode {
         let cell = BoardCell(column: column, row: row)
         let item = IngredientNode(
-            emoji: emoji,
-            ingredientType: ingredientType,
-            level: level,
+            kind: kind,
             cell: cell
         )
 
@@ -192,6 +208,7 @@ final class MergeBoardScene: SKScene {
 
         boardNode.addChild(item)
         itemsByCell[cell] = item
+        return item
     }
 
     // MARK: - Touch Drag
@@ -277,8 +294,7 @@ final class MergeBoardScene: SKScene {
             return
         }
 
-        let canMergeLater = draggedItem.ingredientType == targetItem.ingredientType
-            && draggedItem.level == targetItem.level
+        let canMergeLater = draggedItem.kind == targetItem.kind
 
         // 같은 종류·같은 레벨은 나중에 머지될 대상입니다.
         // 이번 작업에서는 머지를 제외했으므로 두 아이템과 보드 상태를 그대로 두고 복귀시킵니다.
