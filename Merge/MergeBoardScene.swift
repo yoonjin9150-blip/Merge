@@ -224,22 +224,7 @@ final class MergeBoardScene: SKScene {
 
         // 선택 상태를 눈으로 검증하기 위한 임시 표시입니다.
         // 실제 디자인은 이후 UI 작업에서 교체합니다.
-        let selectionIndicator = SKShapeNode(
-            rectOf: CGSize(width: cellSize * 0.82, height: cellSize * 0.82),
-            cornerRadius: 8
-        )
-        selectionIndicator.strokeColor = SKColor(
-            red: 0.12,
-            green: 0.78,
-            blue: 0.88,
-            alpha: 1
-        )
-        selectionIndicator.fillColor = .clear
-        selectionIndicator.lineWidth = 3
-        // 아이템보다 앞에 그려 선택 여부가 항상 보이도록 합니다.
-        selectionIndicator.zPosition = 1
-        selectionIndicator.isHidden = true
-        selectionIndicator.name = "selectionIndicator"
+        let selectionIndicator = makeSelectionIndicator()
         item.addChild(selectionIndicator)
         item.selectionIndicator = selectionIndicator
 
@@ -439,6 +424,54 @@ final class MergeBoardScene: SKScene {
     }
 
     // MARK: - Selection
+
+    private func makeSelectionIndicator() -> SKShapeNode {
+        let path = CGMutablePath()
+
+        // 아이템 중심에서 선택 표시 꼭짓점까지의 거리입니다.
+        // 값을 키우면 네 개의 ㄱ자 표시가 아이템에서 더 멀어집니다.
+        let halfSize = cellSize * 0.36
+
+        // 각 꼭짓점에서 가로·세로로 뻗는 선의 길이입니다.
+        let cornerLength = cellSize * 0.14
+
+        // 왼쪽 위 ┌
+        path.move(to: CGPoint(x: -halfSize + cornerLength, y: halfSize))
+        path.addLine(to: CGPoint(x: -halfSize, y: halfSize))
+        path.addLine(to: CGPoint(x: -halfSize, y: halfSize - cornerLength))
+
+        // 오른쪽 위 ┐
+        path.move(to: CGPoint(x: halfSize - cornerLength, y: halfSize))
+        path.addLine(to: CGPoint(x: halfSize, y: halfSize))
+        path.addLine(to: CGPoint(x: halfSize, y: halfSize - cornerLength))
+
+        // 왼쪽 아래 └
+        path.move(to: CGPoint(x: -halfSize, y: -halfSize + cornerLength))
+        path.addLine(to: CGPoint(x: -halfSize, y: -halfSize))
+        path.addLine(to: CGPoint(x: -halfSize + cornerLength, y: -halfSize))
+
+        // 오른쪽 아래 ┘
+        path.move(to: CGPoint(x: halfSize, y: -halfSize + cornerLength))
+        path.addLine(to: CGPoint(x: halfSize, y: -halfSize))
+        path.addLine(to: CGPoint(x: halfSize - cornerLength, y: -halfSize))
+
+        let indicator = SKShapeNode(path: path)
+        indicator.strokeColor = SKColor(
+            red: 0.12,
+            green: 0.78,
+            blue: 0.88,
+            alpha: 1
+        )
+        indicator.fillColor = .clear
+        indicator.lineWidth = 4
+        indicator.lineCap = .round
+        indicator.lineJoin = .round
+        // 아이템보다 앞에 그려 선택 여부가 항상 보이도록 합니다.
+        indicator.zPosition = 1
+        indicator.isHidden = true
+        indicator.name = "selectionIndicator"
+        return indicator
+    }
 
     private func select(_ item: IngredientNode) {
         selectedItem?.isSelected = false
