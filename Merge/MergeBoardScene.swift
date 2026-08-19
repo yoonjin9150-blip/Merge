@@ -48,6 +48,11 @@ final class MergeBoardScene: SKScene {
         let kind: IngredientKind
         var cell: BoardCell
         var selectionIndicator: SKShapeNode?
+        var isSelected = false {
+            didSet {
+                selectionIndicator?.isHidden = !isSelected
+            }
+        }
 
         init(
             kind: IngredientKind,
@@ -231,7 +236,8 @@ final class MergeBoardScene: SKScene {
         )
         selectionIndicator.fillColor = .clear
         selectionIndicator.lineWidth = 3
-        selectionIndicator.zPosition = -0.5
+        // 아이템보다 앞에 그려 선택 여부가 항상 보이도록 합니다.
+        selectionIndicator.zPosition = 1
         selectionIndicator.isHidden = true
         selectionIndicator.name = "selectionIndicator"
         item.addChild(selectionIndicator)
@@ -305,8 +311,9 @@ final class MergeBoardScene: SKScene {
 
         let targetCell = nearestCell(to: item.position)
         let itemToSelect = resolveDrop(of: item, from: startCell, to: targetCell)
-        select(itemToSelect)
         finishDragging()
+        // 손가락 드래그 상태를 먼저 종료한 뒤, 머지 결과 아이템을 선택 상태로 유지합니다.
+        select(itemToSelect)
     }
 
     // 전화 수신 등으로 터치가 취소되면 보드 상태를 바꾸지 않고 원래 칸으로 돌려놓습니다.
@@ -434,9 +441,9 @@ final class MergeBoardScene: SKScene {
     // MARK: - Selection
 
     private func select(_ item: IngredientNode) {
-        selectedItem?.selectionIndicator?.isHidden = true
+        selectedItem?.isSelected = false
         selectedItem = item
-        item.selectionIndicator?.isHidden = false
+        item.isSelected = true
     }
 
     private func ingredientNode(at position: CGPoint) -> IngredientNode? {
