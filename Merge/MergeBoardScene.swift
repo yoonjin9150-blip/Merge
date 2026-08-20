@@ -84,10 +84,11 @@ final class MergeBoardScene: SKScene {
     // 버터 스카이 픽셀 보드에서 공통으로 사용하는 색입니다.
     private let outlineColor = SKColor(red: 0.07, green: 0.08, blue: 0.22, alpha: 1)
     private let frameColor = SKColor(red: 1, green: 0.79, blue: 0.24, alpha: 1)
-    private let shadowColor = SKColor(red: 0.20, green: 0.38, blue: 0.56, alpha: 0.75)
+    private let frameHighlightColor = SKColor(red: 1, green: 0.91, blue: 0.48, alpha: 1)
+    private let frameShadeColor = SKColor(red: 0.93, green: 0.58, blue: 0.12, alpha: 1)
+    private let shadowColor = SKColor(red: 0.20, green: 0.38, blue: 0.56, alpha: 0.58)
     private let coralColor = SKColor(red: 1, green: 0.43, blue: 0.35, alpha: 1)
     private let creamColor = SKColor(red: 1, green: 0.96, blue: 0.83, alpha: 1)
-    private let alternateCreamColor = SKColor(red: 0.98, green: 0.92, blue: 0.76, alpha: 1)
 
     // 보드의 칸과 아이템을 담는 부모 노드입니다.
     private let boardNode = SKNode()
@@ -142,7 +143,8 @@ final class MergeBoardScene: SKScene {
         originalCell = nil
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
-        let horizontalPadding: CGFloat = 18
+        // 넓어진 픽셀 프레임까지 화면 안에 들어오도록 보드 자체에는 조금 더 여백을 둡니다.
+        let horizontalPadding: CGFloat = 26
         let verticalPadding: CGFloat = 14
 
         let availableWidth = size.width - (horizontalPadding * 2)
@@ -177,37 +179,49 @@ final class MergeBoardScene: SKScene {
             y: boardOrigin.y + (height / 2)
         )
 
-        // 오른쪽 아래로 밀린 블록 그림자가 보드가 떠 있는 장난감 판처럼 보이게 합니다.
+        // 오른쪽 아래로 살짝 밀린 그림자가 보드 외곽의 계단 모양을 그대로 따라갑니다.
         let shadow = makeSteppedPanel(
-            size: CGSize(width: width + 24, height: height + 24),
-            cornerCut: 8,
+            size: CGSize(width: width + 36, height: height + 36),
+            cornerCut: 10,
             color: shadowColor
         )
         shadow.position = CGPoint(x: boardCenter.x + 6, y: boardCenter.y - 6)
-        shadow.zPosition = -4
+        shadow.zPosition = -6
         boardNode.addChild(shadow)
 
         // 가장 바깥의 짙은 남색 픽셀 외곽선입니다.
         let outerOutline = makeSteppedPanel(
-            size: CGSize(width: width + 24, height: height + 24),
-            cornerCut: 8,
+            size: CGSize(width: width + 36, height: height + 36),
+            cornerCut: 10,
             color: outlineColor
         )
         outerOutline.position = boardCenter
-        outerOutline.zPosition = -3
+        outerOutline.zPosition = -5
         boardNode.addChild(outerOutline)
 
-        // 외곽선 안쪽의 버터 노랑 프레임입니다.
+        // 버터 프레임 아래쪽에 진한 노랑 층을 깔아 픽셀 장난감 같은 깊이를 만듭니다.
+        let frameShade = makeSteppedPanel(
+            size: CGSize(width: width + 30, height: height + 30),
+            cornerCut: 8,
+            color: frameShadeColor
+        )
+        frameShade.position = boardCenter
+        frameShade.zPosition = -4
+        boardNode.addChild(frameShade)
+
+        // 외곽선 안쪽의 넓은 버터 노랑 프레임입니다.
         let butterFrame = makeSteppedPanel(
-            size: CGSize(width: width + 18, height: height + 18),
-            cornerCut: 6,
+            size: CGSize(width: width + 26, height: height + 26),
+            cornerCut: 8,
             color: frameColor
         )
         butterFrame.position = boardCenter
-        butterFrame.zPosition = -2
+        butterFrame.zPosition = -3
         boardNode.addChild(butterFrame)
 
-        // 칸 사이의 짙은 남색 선으로 보이는 내부 바탕입니다.
+        addFrameHighlights(boardCenter: boardCenter, boardWidth: width, boardHeight: height)
+
+        // 각 타일 사이의 가는 남색 선으로 보이는 내부 바탕입니다.
         let gridBackground = SKSpriteNode(
             color: outlineColor,
             size: CGSize(width: width + 2, height: height + 2)
@@ -217,6 +231,7 @@ final class MergeBoardScene: SKScene {
         boardNode.addChild(gridBackground)
 
         addFrameStuds(boardCenter: boardCenter, boardWidth: width, boardHeight: height)
+        addCenterTabs(boardCenter: boardCenter, boardHeight: height)
     }
 
     private func makeSteppedPanel(
@@ -255,8 +270,8 @@ final class MergeBoardScene: SKScene {
         boardWidth: CGFloat,
         boardHeight: CGFloat
     ) {
-        let horizontalOffset = (boardWidth / 2) + 6
-        let verticalOffset = (boardHeight / 2) + 6
+        let horizontalOffset = (boardWidth / 2) + 9
+        let verticalOffset = (boardHeight / 2) + 9
         let studPositions = [
             CGPoint(x: boardCenter.x - horizontalOffset, y: boardCenter.y + verticalOffset),
             CGPoint(x: boardCenter.x + horizontalOffset, y: boardCenter.y + verticalOffset),
@@ -267,14 +282,14 @@ final class MergeBoardScene: SKScene {
         for position in studPositions {
             let studOutline = SKSpriteNode(
                 color: outlineColor,
-                size: CGSize(width: 8, height: 8)
+                size: CGSize(width: 10, height: 10)
             )
             studOutline.position = position
-            studOutline.zPosition = -0.8
+            studOutline.zPosition = -0.7
 
             let studCenter = SKSpriteNode(
                 color: coralColor,
-                size: CGSize(width: 4, height: 4)
+                size: CGSize(width: 6, height: 6)
             )
             studCenter.zPosition = 0.1
             studOutline.addChild(studCenter)
@@ -282,30 +297,79 @@ final class MergeBoardScene: SKScene {
         }
     }
 
+    private func addFrameHighlights(
+        boardCenter: CGPoint,
+        boardWidth: CGFloat,
+        boardHeight: CGFloat
+    ) {
+        // 위쪽과 왼쪽의 밝은 띠는 프레임이 빛을 받는 면을 표현합니다.
+        let topHighlight = SKSpriteNode(
+            color: frameHighlightColor,
+            size: CGSize(width: boardWidth - 12, height: 3)
+        )
+        topHighlight.position = CGPoint(
+            x: boardCenter.x,
+            y: boardCenter.y + (boardHeight / 2) + 9
+        )
+        topHighlight.zPosition = -2
+        boardNode.addChild(topHighlight)
+
+        let leftHighlight = SKSpriteNode(
+            color: frameHighlightColor,
+            size: CGSize(width: 3, height: boardHeight - 12)
+        )
+        leftHighlight.position = CGPoint(
+            x: boardCenter.x - (boardWidth / 2) - 9,
+            y: boardCenter.y
+        )
+        leftHighlight.zPosition = -2
+        boardNode.addChild(leftHighlight)
+    }
+
+    private func addCenterTabs(boardCenter: CGPoint, boardHeight: CGFloat) {
+        // A안 레퍼런스처럼 위·아래 중앙에 프레임 밖으로 살짝 튀어나온 장식을 둡니다.
+        let verticalOffset = (boardHeight / 2) + 17
+
+        for direction in [-1.0, 1.0] {
+            let tabOutline = SKSpriteNode(
+                color: outlineColor,
+                size: CGSize(width: 24, height: 12)
+            )
+            tabOutline.position = CGPoint(
+                x: boardCenter.x,
+                y: boardCenter.y + (verticalOffset * direction)
+            )
+            tabOutline.zPosition = -0.7
+
+            let tabFrame = SKSpriteNode(
+                color: frameColor,
+                size: CGSize(width: 18, height: 8)
+            )
+            tabFrame.zPosition = 0.1
+            tabOutline.addChild(tabFrame)
+
+            let tabCenter = SKSpriteNode(
+                color: coralColor,
+                size: CGSize(width: 6, height: 6)
+            )
+            tabCenter.zPosition = 0.2
+            tabOutline.addChild(tabCenter)
+            boardNode.addChild(tabOutline)
+        }
+    }
+
     private func drawCells() {
         for row in 0..<rows {
             for column in 0..<columns {
-                // 칸 사이에 2pt의 짙은 남색 바탕이 보이도록 외곽 타일을 작게 만듭니다.
-                let cellOutline = SKSpriteNode(
-                    color: outlineColor,
+                // 각 타일을 칸보다 2pt만 작게 만들어 남색 바탕이 가는 격자선으로 보이게 합니다.
+                let cellTile = SKSpriteNode(
+                    color: creamColor,
                     size: CGSize(width: cellSize - 2, height: cellSize - 2)
                 )
-                cellOutline.position = positionForCell(column: column, row: row)
-                cellOutline.zPosition = 0
-                cellOutline.name = "boardCell"
-
-                // 아주 미세한 두 가지 크림색을 번갈아 사용해 단조로움을 줄입니다.
-                let tileColor = (row + column).isMultiple(of: 2)
-                    ? creamColor
-                    : alternateCreamColor
-                let cellFill = SKSpriteNode(
-                    color: tileColor,
-                    size: CGSize(width: cellSize - 6, height: cellSize - 6)
-                )
-                cellFill.zPosition = 0.1
-                cellOutline.addChild(cellFill)
-
-                boardNode.addChild(cellOutline)
+                cellTile.position = positionForCell(column: column, row: row)
+                cellTile.zPosition = 0
+                cellTile.name = "boardCell"
+                boardNode.addChild(cellTile)
             }
         }
     }
