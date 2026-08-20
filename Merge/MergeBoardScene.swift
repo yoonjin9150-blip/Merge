@@ -26,6 +26,9 @@ final class MergeBoardScene: SKScene {
     // 픽셀 프레임과 7×9 격자를 그리는 전용 객체입니다.
     private let boardRenderer = BoardRenderer()
 
+    // 각 칸의 점유 상태와 아이템 이동·교체를 관리하는 전용 객체입니다.
+    private lazy var boardState = BoardState(columns: columns, rows: rows)
+
     // 화면 크기에 맞춰 계산되는 실제 한 칸의 크기입니다.
     private var cellSize: CGFloat = 0
 
@@ -47,10 +50,6 @@ final class MergeBoardScene: SKScene {
     // 드래그를 시작한 칸입니다.
     // 손가락을 뗐을 때 빈 칸 이동·자리 교체·원래 칸 복귀를 판단하는 기준이 됩니다.
     private var originalCell: BoardCell?
-
-    // 각 행·열에 어떤 아이템이 있는지 관리하는 실제 보드 상태입니다.
-    // 아이템 노드의 화면 위치만 보고 빈 칸을 판단하지 않고, 이 딕셔너리를 기준으로 판단합니다.
-    private var itemsByCell: [BoardCell: BoardItemNode] = [:]
 
     // 아이템을 잡은 지점과 아이템 중심 사이의 거리입니다.
     // 손가락을 아이템의 가장자리에서 눌러도 아이템이 갑자기 점프하지 않게 합니다.
@@ -83,7 +82,7 @@ final class MergeBoardScene: SKScene {
     private func buildBoard() {
         // 보드와 최초 아이템을 처음 그립니다.
         boardNode.removeAllChildren()
-        itemsByCell.removeAll()
+        boardState.reset()
         selectedItem = nil
         draggedItem = nil
         activeTouch = nil
@@ -149,10 +148,6 @@ final class MergeBoardScene: SKScene {
     ) -> BoardItemNode {
         let cell = BoardCell(column: column, row: row)
 
-        // 같은 칸에 두 노드를 추가하면 화면과 itemsByCell이 어긋납니다.
-        // 호출하는 쪽은 반드시 빈 칸을 확인하거나 기존 아이템을 제거한 뒤 추가해야 합니다.
-        precondition(itemsByCell[cell] == nil, "이미 아이템이 있는 칸에는 새 아이템을 추가할 수 없습니다.")
-
         let item = BoardItemNode(
             kind: kind,
             cell: cell
@@ -163,7 +158,7 @@ final class MergeBoardScene: SKScene {
         item.zPosition = 1
 
         boardNode.addChild(item)
-        itemsByCell[cell] = item
+        boardState.add(item, at: cell)
         return item
     }
 
@@ -320,34 +315,17 @@ final class MergeBoardScene: SKScene {
         // 생성기 종류가 무엇을 만드는지 확인합니다.
         // 밀·밀가루 같은 일반 재료를 다시 탭한 경우에는 아무것도 생성하지 않습니다.
         guard let spawnedKind = generator.kind.spawnedItemKind,
-              let emptyCell = firstEmptyCell() else {
+              let emptyCell = boardState.firstEmptyCell() else {
             return
         }
 
-        // 빈 칸을 찾은 뒤 화면 노드와 itemsByCell 상태를 동시에 추가합니다.
+        // 빈 칸을 찾은 뒤 화면 노드와 BoardState 상태를 동시에 추가합니다.
         // 생성 애니메이션은 후속 작업에서 이 지점에 연결합니다.
         addBoardItem(
             spawnedKind,
             column: emptyCell.column,
             row: emptyCell.row
         )
-    }
-
-    private func firstEmptyCell() -> BoardCell? {
-        // row 0의 왼쪽부터 오른쪽으로 확인한 뒤 다음 행으로 내려갑니다.
-        // 따라서 최초 곡물 포대가 1행 1열을 차지하면 첫 밀은 1행 2열에 생성됩니다.
-        for row in 0..<rows {
-            for column in 0..<columns {
-                let cell = BoardCell(column: column, row: row)
-
-                if itemsByCell[cell] == nil {
-                    return cell
-                }
-            }
-        }
-
-        // 63칸이 모두 차 있으면 기존 아이템을 덮어쓰지 않고 생성을 취소합니다.
-        return nil
     }
 
     // MARK: - Grid Snap
@@ -363,12 +341,10 @@ final class MergeBoardScene: SKScene {
             return draggedItem
         }
 
-        // 목표 칸이 비었다면 시작 칸을 비우고 목표 칸에 아이템을 등록합니다.
+        // 목표 칸이 비었다면 BoardState에서 아이템의 칸을 이동합니다.
         // 화면 위치와 보드 상태를 같은 시점에 갱신해야 둘이 어긋나지 않습니다.
-        guard let targetItem = itemsByCell[targetCell] else {
-            itemsByCell[startCell] = nil
-            itemsByCell[targetCell] = draggedItem
-            draggedItem.cell = targetCell
+        guard let targetItem = boardState.item(at: targetCell) else {
+            boardState.move(draggedItem, from: startCell, to: targetCell)
             draggedItem.position = positionForCell(targetCell)
             return draggedItem
         }
@@ -398,16 +374,16 @@ final class MergeBoardScene: SKScene {
         at targetCell: BoardCell,
         into nextKind: BoardItemKind
     ) -> BoardItemNode {
-        // 먼저 두 칸의 기존 점유 정보를 제거합니다.
-        // 화면 노드를 제거한 뒤 딕셔너리에 남는 유령 아이템이 없도록 함께 갱신합니다.
-        itemsByCell[startCell] = nil
-        itemsByCell[targetCell] = nil
+        // 먼저 BoardState에서 두 칸의 기존 점유 정보를 제거합니다.
+        // 화면 노드를 제거한 뒤 상태에 남는 유령 아이템이 없도록 함께 갱신합니다.
+        boardState.removeItem(at: startCell)
+        boardState.removeItem(at: targetCell)
 
         draggedItem.removeFromParent()
         targetItem.removeFromParent()
 
         // 머지 결과는 사용자가 드롭한 목표 칸에 하나만 생성합니다.
-        // addBoardItem이 새 노드를 화면과 itemsByCell에 동시에 등록합니다.
+        // addBoardItem이 새 노드를 화면과 BoardState에 동시에 등록합니다.
         return addBoardItem(
             nextKind,
             column: targetCell.column,
@@ -421,12 +397,13 @@ final class MergeBoardScene: SKScene {
         from startCell: BoardCell,
         to targetCell: BoardCell
     ) {
-        // 두 칸의 점유 상태를 교체한 뒤 두 화면 노드도 각 칸 중앙에 배치합니다.
-        itemsByCell[startCell] = targetItem
-        itemsByCell[targetCell] = draggedItem
-
-        targetItem.cell = startCell
-        draggedItem.cell = targetCell
+        // BoardState의 두 칸을 교체한 뒤 두 화면 노드도 각 칸 중앙에 배치합니다.
+        boardState.swap(
+            draggedItem,
+            at: startCell,
+            with: targetItem,
+            at: targetCell
+        )
         targetItem.position = positionForCell(startCell)
         draggedItem.position = positionForCell(targetCell)
     }
@@ -465,35 +442,34 @@ final class MergeBoardScene: SKScene {
 
     private func assertBoardItemsMatchStoredCells() {
 #if DEBUG
-        // 화면에 보이는 보드 아이템과 itemsByCell에 저장된 아이템의 개수가 같은지 확인합니다.
+        // 화면에 보이는 보드 아이템과 BoardState에 저장된 아이템의 개수가 같은지 확인합니다.
         let visibleItems = boardNode.children.compactMap { $0 as? BoardItemNode }
         assert(
-            visibleItems.count == itemsByCell.count,
-            "화면의 아이템 개수와 itemsByCell에 저장된 아이템 개수가 다릅니다."
+            visibleItems.count == boardState.itemCount,
+            "화면의 아이템 개수와 BoardState에 저장된 아이템 개수가 다릅니다."
         )
 
-        // 화면에 보이는 각 아이템이 자신의 cell 주소로 itemsByCell에도 등록되어 있는지 확인합니다.
+        // 화면에 보이는 각 아이템이 자신의 cell 주소로 BoardState에도 등록되어 있는지 확인합니다.
         for item in visibleItems {
-            guard let storedItem = itemsByCell[item.cell] else {
-                assertionFailure("화면에는 아이템이 있지만 해당 칸이 itemsByCell에 저장되어 있지 않습니다.")
+            guard let storedItem = boardState.item(at: item.cell) else {
+                assertionFailure("화면에는 아이템이 있지만 해당 칸이 BoardState에 저장되어 있지 않습니다.")
                 continue
             }
 
             assert(
                 storedItem === item,
-                "화면의 아이템과 itemsByCell에 저장된 아이템이 서로 다른 객체입니다."
+                "화면의 아이템과 BoardState에 저장된 아이템이 서로 다른 객체입니다."
             )
         }
 
-        // itemsByCell의 칸 주소, 아이템이 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
-        for (cell, item) in itemsByCell {
-            assert((0..<columns).contains(cell.column), "보드 범위를 벗어난 열에 아이템이 저장되었습니다.")
-            assert((0..<rows).contains(cell.row), "보드 범위를 벗어난 행에 아이템이 저장되었습니다.")
-            assert(item.cell == cell, "itemsByCell의 칸과 아이템이 기억하는 칸이 다릅니다.")
-            assert(item.parent === boardNode, "itemsByCell에는 아이템이 있지만 화면에는 존재하지 않습니다.")
+        // BoardState의 칸 주소, 아이템이 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
+        for (cell, item) in boardState.itemsByCell {
+            assert(boardState.contains(cell), "보드 범위를 벗어난 칸에 아이템이 저장되었습니다.")
+            assert(item.cell == cell, "BoardState의 칸과 아이템이 기억하는 칸이 다릅니다.")
+            assert(item.parent === boardNode, "BoardState에는 아이템이 있지만 화면에는 존재하지 않습니다.")
         }
 
-        assert(itemsByCell.count <= columns * rows, "보드의 전체 칸 수보다 많은 아이템이 저장되었습니다.")
+        assert(boardState.itemCount <= columns * rows, "보드의 전체 칸 수보다 많은 아이템이 저장되었습니다.")
 
         if let selectedItem {
             assert(selectedItem.parent === boardNode, "선택된 아이템이 화면에 존재하지 않습니다.")
