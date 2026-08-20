@@ -2,21 +2,25 @@
 //  MergeBoardScene.swift
 //  Merge
 //
-//  7 × 9 머지 보드와 테스트 재료를 보여 주는 SpriteKit 장면입니다.
+//  7 × 9 머지 보드와 보드 아이템을 보여 주는 SpriteKit 장면입니다.
 //
 
 import SpriteKit
 
 final class MergeBoardScene: SKScene {
 
-    // 재료를 문자열이 아닌 타입으로 구분해 오타로 인한 판정 오류를 막습니다.
-    // 이번 기술 검증에서는 밀과 밀가루 한 단계만 정의합니다.
-    private enum IngredientKind {
+    // 생성기와 재료를 하나의 보드 아이템 타입으로 관리합니다.
+    // 화면에 놓이는 대상은 같지만, 생성 여부와 머지 여부는 종류별 규칙으로 구분합니다.
+    private enum BoardItemKind {
+        case grainSack
         case wheat
         case flour
 
         var emoji: String {
             switch self {
+            case .grainSack:
+                // 곡물 포대 이미지가 준비되기 전까지 사용하는 임시 이모지입니다.
+                return "🧺"
             case .wheat:
                 return "🌾"
             case .flour:
@@ -26,8 +30,10 @@ final class MergeBoardScene: SKScene {
 
         // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
         // 밀가루 이후 단계는 전체 머지 트리를 구현할 때 추가합니다.
-        var nextKind: IngredientKind? {
+        var nextKind: BoardItemKind? {
             switch self {
+            case .grainSack:
+                return nil
             case .wheat:
                 return .flour
             case .flour:
@@ -43,9 +49,9 @@ final class MergeBoardScene: SKScene {
         let row: Int
     }
 
-    // 화면에 보이는 이모지와 게임 규칙에 필요한 정보를 함께 보관하는 아이템 노드입니다.
-    private final class IngredientNode: SKLabelNode {
-        let kind: IngredientKind
+    // 생성기와 재료의 화면 표시, 현재 칸, 선택 상태를 함께 보관하는 보드 아이템 노드입니다.
+    private final class BoardItemNode: SKLabelNode {
+        let kind: BoardItemKind
         var cell: BoardCell
         var selectionIndicator: SKShapeNode?
         var isSelected = false {
@@ -55,7 +61,7 @@ final class MergeBoardScene: SKScene {
         }
 
         init(
-            kind: IngredientKind,
+            kind: BoardItemKind,
             cell: BoardCell
         ) {
             self.kind = kind
@@ -104,11 +110,11 @@ final class MergeBoardScene: SKScene {
 
     // 마지막으로 선택한 아이템입니다.
     // 손가락을 떼어 드래그가 끝난 뒤에도 선택 표시와 함께 유지됩니다.
-    private var selectedItem: IngredientNode?
+    private var selectedItem: BoardItemNode?
 
     // 현재 손가락으로 끌고 있는 아이템입니다.
     // touchesBegan에서 저장하고, 손가락을 떼면 nil로 초기화합니다.
-    private var draggedItem: IngredientNode?
+    private var draggedItem: BoardItemNode?
 
     // 현재 드래그를 시작한 하나의 터치만 기억합니다.
     // 드래그 도중 다른 손가락이 화면에 닿아도 선택 아이템이 바뀌지 않게 합니다.
@@ -120,7 +126,7 @@ final class MergeBoardScene: SKScene {
 
     // 각 행·열에 어떤 아이템이 있는지 관리하는 실제 보드 상태입니다.
     // 아이템 노드의 화면 위치만 보고 빈 칸을 판단하지 않고, 이 딕셔너리를 기준으로 판단합니다.
-    private var itemsByCell: [BoardCell: IngredientNode] = [:]
+    private var itemsByCell: [BoardCell: BoardItemNode] = [:]
 
     // 아이템을 잡은 지점과 아이템 중심 사이의 거리입니다.
     // 손가락을 아이템의 가장자리에서 눌러도 아이템이 갑자기 점프하지 않게 합니다.
@@ -137,7 +143,7 @@ final class MergeBoardScene: SKScene {
     // MARK: - Board Drawing
 
     private func buildBoard() {
-        // 보드와 테스트 아이템을 처음 그립니다.
+        // 보드와 최초 아이템을 처음 그립니다.
         boardNode.removeAllChildren()
         itemsByCell.removeAll()
         selectedItem = nil
@@ -172,7 +178,7 @@ final class MergeBoardScene: SKScene {
 
         drawBoardFrame(width: boardWidth, height: boardHeight)
         drawCells()
-        addTestItems()
+        addInitialItems()
         assertBoardItemsMatchStoredCells()
     }
 
@@ -460,32 +466,27 @@ final class MergeBoardScene: SKScene {
         }
     }
 
-    // MARK: - Test Items
+    // MARK: - Initial Board Items
 
-    private func addTestItems() {
+    private func addInitialItems() {
         // row 0은 화면에서 가장 위쪽인 1행입니다.
         // column 0은 왼쪽 첫 번째 칸입니다.
-        // 아이템 위치를 바꾸고 싶다면 아래 column·row 숫자를 바꾸면 됩니다.
-        addIngredient(
-            .wheat,
+        // 곡물 포대는 최초 상태에서 좌측 상단 1행 1열 한 칸만 차지합니다.
+        addBoardItem(
+            .grainSack,
             column: 0,
-            row: 0
-        )
-        addIngredient(
-            .wheat,
-            column: 1,
             row: 0
         )
     }
 
     @discardableResult
-    private func addIngredient(
-        _ kind: IngredientKind,
+    private func addBoardItem(
+        _ kind: BoardItemKind,
         column: Int,
         row: Int
-    ) -> IngredientNode {
+    ) -> BoardItemNode {
         let cell = BoardCell(column: column, row: row)
-        let item = IngredientNode(
+        let item = BoardItemNode(
             kind: kind,
             cell: cell
         )
@@ -495,7 +496,7 @@ final class MergeBoardScene: SKScene {
         item.horizontalAlignmentMode = .center
         item.position = positionForCell(cell)
         item.zPosition = 1
-        item.name = "ingredient"
+        item.name = "boardItem"
 
         // 선택 상태를 눈으로 검증하기 위한 임시 표시입니다.
         // 실제 디자인은 이후 UI 작업에서 교체합니다.
@@ -511,7 +512,7 @@ final class MergeBoardScene: SKScene {
     // MARK: - Touch Drag
 
     // 손가락을 화면에 댄 순간입니다.
-    // 터치 위치에 재료가 있으면, 그 재료를 이번 드래그의 대상으로 저장합니다.
+    // 터치 위치에 보드 아이템이 있으면, 그 아이템을 이번 드래그의 대상으로 저장합니다.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         // 이미 한 아이템을 드래그 중이라면 추가 터치는 무시합니다.
         guard activeTouch == nil, draggedItem == nil, let touch = touches.first else {
@@ -519,7 +520,7 @@ final class MergeBoardScene: SKScene {
         }
 
         let touchLocation = touch.location(in: self)
-        guard let item = ingredientNode(at: touchLocation) else {
+        guard let item = boardItemNode(at: touchLocation) else {
             return
         }
 
@@ -534,7 +535,7 @@ final class MergeBoardScene: SKScene {
             y: item.position.y - touchLocation.y
         )
 
-        // 드래그 중인 재료가 다른 칸보다 앞에 보이도록 합니다.
+        // 드래그 중인 아이템이 다른 칸보다 앞에 보이도록 합니다.
         item.zPosition = 2
     }
 
@@ -603,10 +604,10 @@ final class MergeBoardScene: SKScene {
     // MARK: - Grid Snap
 
     private func resolveDrop(
-        of draggedItem: IngredientNode,
+        of draggedItem: BoardItemNode,
         from startCell: BoardCell,
         to targetCell: BoardCell
-    ) -> IngredientNode {
+    ) -> BoardItemNode {
         // 시작한 칸에 다시 놓았다면 데이터는 바꾸지 않고 칸 중앙에 정확히 맞춥니다.
         guard targetCell != startCell else {
             draggedItem.position = positionForCell(startCell)
@@ -642,12 +643,12 @@ final class MergeBoardScene: SKScene {
     }
 
     private func mergeItems(
-        _ draggedItem: IngredientNode,
-        with targetItem: IngredientNode,
+        _ draggedItem: BoardItemNode,
+        with targetItem: BoardItemNode,
         from startCell: BoardCell,
         at targetCell: BoardCell,
-        into nextKind: IngredientKind
-    ) -> IngredientNode {
+        into nextKind: BoardItemKind
+    ) -> BoardItemNode {
         // 먼저 두 칸의 기존 점유 정보를 제거합니다.
         // 화면 노드를 제거한 뒤 딕셔너리에 남는 유령 아이템이 없도록 함께 갱신합니다.
         itemsByCell[startCell] = nil
@@ -657,8 +658,8 @@ final class MergeBoardScene: SKScene {
         targetItem.removeFromParent()
 
         // 머지 결과는 사용자가 드롭한 목표 칸에 하나만 생성합니다.
-        // addIngredient가 새 노드를 화면과 itemsByCell에 동시에 등록합니다.
-        return addIngredient(
+        // addBoardItem이 새 노드를 화면과 itemsByCell에 동시에 등록합니다.
+        return addBoardItem(
             nextKind,
             column: targetCell.column,
             row: targetCell.row
@@ -666,8 +667,8 @@ final class MergeBoardScene: SKScene {
     }
 
     private func swapItems(
-        _ draggedItem: IngredientNode,
-        with targetItem: IngredientNode,
+        _ draggedItem: BoardItemNode,
+        with targetItem: BoardItemNode,
         from startCell: BoardCell,
         to targetCell: BoardCell
     ) {
@@ -712,34 +713,34 @@ final class MergeBoardScene: SKScene {
 
     private func assertBoardItemsMatchStoredCells() {
 #if DEBUG
-        // 화면에 보이는 재료 노드와 itemsByCell에 저장된 재료의 개수가 같은지 확인합니다.
-        let visibleItems = boardNode.children.compactMap { $0 as? IngredientNode }
+        // 화면에 보이는 보드 아이템과 itemsByCell에 저장된 아이템의 개수가 같은지 확인합니다.
+        let visibleItems = boardNode.children.compactMap { $0 as? BoardItemNode }
         assert(
             visibleItems.count == itemsByCell.count,
-            "화면의 재료 개수와 itemsByCell에 저장된 재료 개수가 다릅니다."
+            "화면의 아이템 개수와 itemsByCell에 저장된 아이템 개수가 다릅니다."
         )
 
-        // 화면에 보이는 각 재료가 자신의 cell 주소로 itemsByCell에도 등록되어 있는지 확인합니다.
+        // 화면에 보이는 각 아이템이 자신의 cell 주소로 itemsByCell에도 등록되어 있는지 확인합니다.
         for item in visibleItems {
             guard let storedItem = itemsByCell[item.cell] else {
-                assertionFailure("화면에는 재료가 있지만 해당 칸이 itemsByCell에 저장되어 있지 않습니다.")
+                assertionFailure("화면에는 아이템이 있지만 해당 칸이 itemsByCell에 저장되어 있지 않습니다.")
                 continue
             }
 
             assert(
                 storedItem === item,
-                "화면의 재료와 itemsByCell에 저장된 재료가 서로 다른 객체입니다."
+                "화면의 아이템과 itemsByCell에 저장된 아이템이 서로 다른 객체입니다."
             )
         }
 
-        // itemsByCell의 칸 주소, 재료가 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
+        // itemsByCell의 칸 주소, 아이템이 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
         for (cell, item) in itemsByCell {
-            assert(item.cell == cell, "itemsByCell의 칸과 재료가 기억하는 칸이 다릅니다.")
-            assert(item.parent === boardNode, "itemsByCell에는 재료가 있지만 화면에는 존재하지 않습니다.")
+            assert(item.cell == cell, "itemsByCell의 칸과 아이템이 기억하는 칸이 다릅니다.")
+            assert(item.parent === boardNode, "itemsByCell에는 아이템이 있지만 화면에는 존재하지 않습니다.")
         }
 
         if let selectedItem {
-            assert(selectedItem.parent === boardNode, "선택된 재료가 화면에 존재하지 않습니다.")
+            assert(selectedItem.parent === boardNode, "선택된 아이템이 화면에 존재하지 않습니다.")
         }
 #endif
     }
@@ -794,7 +795,7 @@ final class MergeBoardScene: SKScene {
         return indicator
     }
 
-    private func select(_ item: IngredientNode) {
+    private func select(_ item: BoardItemNode) {
         clearSelection()
         selectedItem = item
         item.isSelected = true
@@ -805,13 +806,13 @@ final class MergeBoardScene: SKScene {
         selectedItem = nil
     }
 
-    private func ingredientNode(at position: CGPoint) -> IngredientNode? {
-        // 선택 테두리는 아이템의 자식 노드이므로, 테두리를 눌러도 부모 재료를 찾도록 위로 탐색합니다.
+    private func boardItemNode(at position: CGPoint) -> BoardItemNode? {
+        // 선택 테두리는 아이템의 자식 노드이므로, 테두리를 눌러도 부모 아이템을 찾도록 위로 탐색합니다.
         var node: SKNode? = atPoint(position)
 
         while let currentNode = node {
-            if let item = currentNode as? IngredientNode,
-               item.name == "ingredient" {
+            if let item = currentNode as? BoardItemNode,
+               item.name == "boardItem" {
                 return item
             }
 
