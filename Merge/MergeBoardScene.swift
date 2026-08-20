@@ -249,9 +249,11 @@ final class MergeBoardScene: SKScene {
             return
         }
 
+        // 손가락으로 누르고 드래그하는 동안에는 꼭짓점 선택 표시를 숨깁니다.
+        // 움직이지 않고 탭한 경우에도 손가락을 뗀 뒤 다시 표시합니다.
+        clearSelection()
         activeTouch = touch
         draggedItem = item
-        select(item)
         originalCell = item.cell
         dragOffset = CGPoint(
             x: item.position.x - touchLocation.x,
@@ -263,7 +265,7 @@ final class MergeBoardScene: SKScene {
     }
 
     // 손가락을 누른 채 움직이는 동안 계속 호출됩니다.
-    // 선택된 재료를 손가락 위치로 옮기되, 재료 전체가 보드 안에 남도록 제한합니다.
+    // 드래그 중인 재료를 손가락 위치로 옮기되, 재료 전체가 보드 안에 남도록 제한합니다.
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let activeTouch,
               touches.contains(where: { $0 === activeTouch }),
@@ -310,11 +312,18 @@ final class MergeBoardScene: SKScene {
             return
         }
 
-        if let item = draggedItem, let startCell = originalCell {
+        let itemToSelect = draggedItem
+
+        if let item = itemToSelect, let startCell = originalCell {
             item.position = positionForCell(startCell)
         }
 
         finishDragging()
+        // 시스템이 터치를 취소하면 원래 칸으로 돌아간 아이템에 선택 표시를 복구합니다.
+        if let itemToSelect {
+            select(itemToSelect)
+        }
+        assertBoardItemsMatchStoredCells()
     }
 
     // MARK: - Grid Snap
@@ -512,9 +521,14 @@ final class MergeBoardScene: SKScene {
     }
 
     private func select(_ item: IngredientNode) {
-        selectedItem?.isSelected = false
+        clearSelection()
         selectedItem = item
         item.isSelected = true
+    }
+
+    private func clearSelection() {
+        selectedItem?.isSelected = false
+        selectedItem = nil
     }
 
     private func ingredientNode(at position: CGPoint) -> IngredientNode? {
