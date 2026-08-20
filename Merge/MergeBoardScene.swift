@@ -154,6 +154,7 @@ final class MergeBoardScene: SKScene {
 
         drawCells()
         addTestItems()
+        assertBoardItemsMatchStoredCells()
     }
 
     private func drawCells() {
@@ -299,6 +300,7 @@ final class MergeBoardScene: SKScene {
         finishDragging()
         // 손가락 드래그 상태를 먼저 종료한 뒤, 머지 결과 아이템을 선택 상태로 유지합니다.
         select(itemToSelect)
+        assertBoardItemsMatchStoredCells()
     }
 
     // 전화 수신 등으로 터치가 취소되면 보드 상태를 바꾸지 않고 원래 칸으로 돌려놓습니다.
@@ -421,6 +423,42 @@ final class MergeBoardScene: SKScene {
         draggedItem = nil
         originalCell = nil
         dragOffset = .zero
+    }
+
+    // MARK: - Debug Validation
+
+    private func assertBoardItemsMatchStoredCells() {
+#if DEBUG
+        // 화면에 보이는 재료 노드와 itemsByCell에 저장된 재료의 개수가 같은지 확인합니다.
+        let visibleItems = boardNode.children.compactMap { $0 as? IngredientNode }
+        assert(
+            visibleItems.count == itemsByCell.count,
+            "화면의 재료 개수와 itemsByCell에 저장된 재료 개수가 다릅니다."
+        )
+
+        // 화면에 보이는 각 재료가 자신의 cell 주소로 itemsByCell에도 등록되어 있는지 확인합니다.
+        for item in visibleItems {
+            guard let storedItem = itemsByCell[item.cell] else {
+                assertionFailure("화면에는 재료가 있지만 해당 칸이 itemsByCell에 저장되어 있지 않습니다.")
+                continue
+            }
+
+            assert(
+                storedItem === item,
+                "화면의 재료와 itemsByCell에 저장된 재료가 서로 다른 객체입니다."
+            )
+        }
+
+        // itemsByCell의 칸 주소, 재료가 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
+        for (cell, item) in itemsByCell {
+            assert(item.cell == cell, "itemsByCell의 칸과 재료가 기억하는 칸이 다릅니다.")
+            assert(item.parent === boardNode, "itemsByCell에는 재료가 있지만 화면에는 존재하지 않습니다.")
+        }
+
+        if let selectedItem {
+            assert(selectedItem.parent === boardNode, "선택된 재료가 화면에 존재하지 않습니다.")
+        }
+#endif
     }
 
     // MARK: - Selection
