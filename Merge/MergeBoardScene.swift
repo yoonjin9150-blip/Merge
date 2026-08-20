@@ -9,6 +9,33 @@ import SpriteKit
 
 final class MergeBoardScene: SKScene {
 
+    // 재료를 문자열이 아닌 타입으로 구분해 오타로 인한 판정 오류를 막습니다.
+    // 이번 기술 검증에서는 밀과 밀가루 한 단계만 정의합니다.
+    private enum IngredientKind {
+        case wheat
+        case flour
+
+        var emoji: String {
+            switch self {
+            case .wheat:
+                return "🌾"
+            case .flour:
+                return "🥣"
+            }
+        }
+
+        // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
+        // 밀가루 이후 단계는 전체 머지 트리를 구현할 때 추가합니다.
+        var nextKind: IngredientKind? {
+            switch self {
+            case .wheat:
+                return .flour
+            case .flour:
+                return nil
+            }
+        }
+    }
+
     // 보드 안 한 칸의 주소입니다.
     // 화면 위치(CGPoint)와 게임 규칙에서 사용하는 행·열을 구분하기 위해 별도 타입으로 둡니다.
     private struct BoardCell: Hashable {
@@ -18,21 +45,23 @@ final class MergeBoardScene: SKScene {
 
     // 화면에 보이는 이모지와 게임 규칙에 필요한 정보를 함께 보관하는 아이템 노드입니다.
     private final class IngredientNode: SKLabelNode {
-        let ingredientType: String
-        let level: Int
+        let kind: IngredientKind
         var cell: BoardCell
+        var selectionIndicator: SKShapeNode?
+        var isSelected = false {
+            didSet {
+                selectionIndicator?.isHidden = !isSelected
+            }
+        }
 
         init(
-            emoji: String,
-            ingredientType: String,
-            level: Int,
+            kind: IngredientKind,
             cell: BoardCell
         ) {
-            self.ingredientType = ingredientType
-            self.level = level
+            self.kind = kind
             self.cell = cell
             super.init()
-            text = emoji
+            text = kind.emoji
         }
 
         @available(*, unavailable)
@@ -58,9 +87,17 @@ final class MergeBoardScene: SKScene {
     // 보드의 왼쪽 아래 시작점입니다.
     private var boardOrigin = CGPoint.zero
 
-    // 현재 손가락으로 잡고 있는 아이템입니다.
-    // touchesBegan에서 저장하고, touchesMoved에서 이 아이템만 움직입니다.
+    // 마지막으로 선택한 아이템입니다.
+    // 손가락을 떼어 드래그가 끝난 뒤에도 선택 표시와 함께 유지됩니다.
     private var selectedItem: IngredientNode?
+
+    // 현재 손가락으로 끌고 있는 아이템입니다.
+    // touchesBegan에서 저장하고, 손가락을 떼면 nil로 초기화합니다.
+    private var draggedItem: IngredientNode?
+
+    // 현재 드래그를 시작한 하나의 터치만 기억합니다.
+    // 드래그 도중 다른 손가락이 화면에 닿아도 선택 아이템이 바뀌지 않게 합니다.
+    private var activeTouch: UITouch?
 
     // 드래그를 시작한 칸입니다.
     // 손가락을 뗐을 때 빈 칸 이동·자리 교체·원래 칸 복귀를 판단하는 기준이 됩니다.
@@ -89,6 +126,8 @@ final class MergeBoardScene: SKScene {
         boardNode.removeAllChildren()
         itemsByCell.removeAll()
         selectedItem = nil
+        draggedItem = nil
+        activeTouch = nil
         originalCell = nil
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
@@ -115,6 +154,7 @@ final class MergeBoardScene: SKScene {
 
         drawCells()
         addTestItems()
+        assertBoardItemsMatchStoredCells()
     }
 
     private func drawCells() {
@@ -152,34 +192,27 @@ final class MergeBoardScene: SKScene {
         // row 0은 화면에서 가장 위쪽인 1행입니다.
         // column 0은 왼쪽 첫 번째 칸입니다.
         // 아이템 위치를 바꾸고 싶다면 아래 column·row 숫자를 바꾸면 됩니다.
-        addIngredientEmoji(
-            "🌾",
-            ingredientType: "wheat",
-            level: 1,
+        addIngredient(
+            .wheat,
             column: 0,
             row: 0
         )
-        addIngredientEmoji(
-            "🌾",
-            ingredientType: "wheat",
-            level: 1,
+        addIngredient(
+            .wheat,
             column: 1,
             row: 0
         )
     }
 
-    private func addIngredientEmoji(
-        _ emoji: String,
-        ingredientType: String,
-        level: Int,
+    @discardableResult
+    private func addIngredient(
+        _ kind: IngredientKind,
         column: Int,
         row: Int
-    ) {
+    ) -> IngredientNode {
         let cell = BoardCell(column: column, row: row)
         let item = IngredientNode(
-            emoji: emoji,
-            ingredientType: ingredientType,
-            level: level,
+            kind: kind,
             cell: cell
         )
 
@@ -190,8 +223,15 @@ final class MergeBoardScene: SKScene {
         item.zPosition = 1
         item.name = "ingredient"
 
+        // 선택 상태를 눈으로 검증하기 위한 임시 표시입니다.
+        // 실제 디자인은 이후 UI 작업에서 교체합니다.
+        let selectionIndicator = makeSelectionIndicator()
+        item.addChild(selectionIndicator)
+        item.selectionIndicator = selectionIndicator
+
         boardNode.addChild(item)
         itemsByCell[cell] = item
+        return item
     }
 
     // MARK: - Touch Drag
@@ -199,15 +239,21 @@ final class MergeBoardScene: SKScene {
     // 손가락을 화면에 댄 순간입니다.
     // 터치 위치에 재료가 있으면, 그 재료를 이번 드래그의 대상으로 저장합니다.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-
-        let touchLocation = touch.location(in: self)
-        guard let item = atPoint(touchLocation) as? IngredientNode,
-              item.name == "ingredient" else {
+        // 이미 한 아이템을 드래그 중이라면 추가 터치는 무시합니다.
+        guard activeTouch == nil, draggedItem == nil, let touch = touches.first else {
             return
         }
 
-        selectedItem = item
+        let touchLocation = touch.location(in: self)
+        guard let item = ingredientNode(at: touchLocation) else {
+            return
+        }
+
+        // 손가락으로 누르고 드래그하는 동안에는 꼭짓점 선택 표시를 숨깁니다.
+        // 움직이지 않고 탭한 경우에도 손가락을 뗀 뒤 다시 표시합니다.
+        clearSelection()
+        activeTouch = touch
+        draggedItem = item
         originalCell = item.cell
         dragOffset = CGPoint(
             x: item.position.x - touchLocation.x,
@@ -219,11 +265,15 @@ final class MergeBoardScene: SKScene {
     }
 
     // 손가락을 누른 채 움직이는 동안 계속 호출됩니다.
-    // 선택된 재료를 손가락 위치로 옮기되, 재료 전체가 보드 안에 남도록 제한합니다.
+    // 드래그 중인 재료를 손가락 위치로 옮기되, 재료 전체가 보드 안에 남도록 제한합니다.
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first, let item = selectedItem else { return }
+        guard let activeTouch,
+              touches.contains(where: { $0 === activeTouch }),
+              let item = draggedItem else {
+            return
+        }
 
-        let touchLocation = touch.location(in: self)
+        let touchLocation = activeTouch.location(in: self)
         let proposedPosition = CGPoint(
             x: touchLocation.x + dragOffset.x,
             y: touchLocation.y + dragOffset.y
@@ -235,23 +285,45 @@ final class MergeBoardScene: SKScene {
     // 손가락을 뗀 순간입니다.
     // 현재 아이템 중심에서 가장 가까운 칸을 찾고, 그 칸의 점유 상태에 따라 스냅합니다.
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let item = selectedItem, let startCell = originalCell else {
+        // 드래그를 시작한 손가락을 뗐을 때만 드롭을 처리합니다.
+        // 도중에 추가로 닿은 다른 손가락을 떼는 것은 무시합니다.
+        guard let activeTouch,
+              touches.contains(where: { $0 === activeTouch }) else {
+            return
+        }
+
+        guard let item = draggedItem, let startCell = originalCell else {
             finishDragging()
             return
         }
 
         let targetCell = nearestCell(to: item.position)
-        resolveDrop(of: item, from: startCell, to: targetCell)
+        let itemToSelect = resolveDrop(of: item, from: startCell, to: targetCell)
         finishDragging()
+        // 손가락 드래그 상태를 먼저 종료한 뒤, 머지 결과 아이템을 선택 상태로 유지합니다.
+        select(itemToSelect)
+        assertBoardItemsMatchStoredCells()
     }
 
     // 전화 수신 등으로 터치가 취소되면 보드 상태를 바꾸지 않고 원래 칸으로 돌려놓습니다.
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if let item = selectedItem, let startCell = originalCell {
+        guard let activeTouch,
+              touches.contains(where: { $0 === activeTouch }) else {
+            return
+        }
+
+        let itemToSelect = draggedItem
+
+        if let item = itemToSelect, let startCell = originalCell {
             item.position = positionForCell(startCell)
         }
 
         finishDragging()
+        // 시스템이 터치를 취소하면 원래 칸으로 돌아간 아이템에 선택 표시를 복구합니다.
+        if let itemToSelect {
+            select(itemToSelect)
+        }
+        assertBoardItemsMatchStoredCells()
     }
 
     // MARK: - Grid Snap
@@ -260,11 +332,11 @@ final class MergeBoardScene: SKScene {
         of draggedItem: IngredientNode,
         from startCell: BoardCell,
         to targetCell: BoardCell
-    ) {
+    ) -> IngredientNode {
         // 시작한 칸에 다시 놓았다면 데이터는 바꾸지 않고 칸 중앙에 정확히 맞춥니다.
         guard targetCell != startCell else {
             draggedItem.position = positionForCell(startCell)
-            return
+            return draggedItem
         }
 
         // 목표 칸이 비었다면 시작 칸을 비우고 목표 칸에 아이템을 등록합니다.
@@ -274,21 +346,58 @@ final class MergeBoardScene: SKScene {
             itemsByCell[targetCell] = draggedItem
             draggedItem.cell = targetCell
             draggedItem.position = positionForCell(targetCell)
-            return
+            return draggedItem
         }
 
-        let canMergeLater = draggedItem.ingredientType == targetItem.ingredientType
-            && draggedItem.level == targetItem.level
-
-        // 같은 종류·같은 레벨은 나중에 머지될 대상입니다.
-        // 이번 작업에서는 머지를 제외했으므로 두 아이템과 보드 상태를 그대로 두고 복귀시킵니다.
-        guard !canMergeLater else {
-            draggedItem.position = positionForCell(startCell)
-            return
+        // 같은 재료이고 다음 단계가 있다면 두 아이템을 다음 단계 하나로 머지합니다.
+        // 이번 기술 검증에서는 밀 두 개만 밀가루로 바뀝니다.
+        if draggedItem.kind == targetItem.kind,
+           let nextKind = draggedItem.kind.nextKind {
+            return mergeItems(
+                draggedItem,
+                with: targetItem,
+                from: startCell,
+                at: targetCell,
+                into: nextKind
+            )
         }
 
-        // 다른 종류 또는 다른 레벨 아이템이 있다면 두 칸의 점유 상태를 교체합니다.
-        // 그 뒤 두 노드도 교체된 칸 중앙에 배치해 화면과 데이터가 같은 결과를 가리키게 합니다.
+        // 다른 종류·다른 단계이거나 다음 단계가 없는 아이템은 서로 위치를 교체합니다.
+        swapItems(draggedItem, with: targetItem, from: startCell, to: targetCell)
+        return draggedItem
+    }
+
+    private func mergeItems(
+        _ draggedItem: IngredientNode,
+        with targetItem: IngredientNode,
+        from startCell: BoardCell,
+        at targetCell: BoardCell,
+        into nextKind: IngredientKind
+    ) -> IngredientNode {
+        // 먼저 두 칸의 기존 점유 정보를 제거합니다.
+        // 화면 노드를 제거한 뒤 딕셔너리에 남는 유령 아이템이 없도록 함께 갱신합니다.
+        itemsByCell[startCell] = nil
+        itemsByCell[targetCell] = nil
+
+        draggedItem.removeFromParent()
+        targetItem.removeFromParent()
+
+        // 머지 결과는 사용자가 드롭한 목표 칸에 하나만 생성합니다.
+        // addIngredient가 새 노드를 화면과 itemsByCell에 동시에 등록합니다.
+        return addIngredient(
+            nextKind,
+            column: targetCell.column,
+            row: targetCell.row
+        )
+    }
+
+    private func swapItems(
+        _ draggedItem: IngredientNode,
+        with targetItem: IngredientNode,
+        from startCell: BoardCell,
+        to targetCell: BoardCell
+    ) {
+        // 두 칸의 점유 상태를 교체한 뒤 두 화면 노드도 각 칸 중앙에 배치합니다.
         itemsByCell[startCell] = targetItem
         itemsByCell[targetCell] = draggedItem
 
@@ -318,10 +427,124 @@ final class MergeBoardScene: SKScene {
     }
 
     private func finishDragging() {
-        selectedItem?.zPosition = 1
-        selectedItem = nil
+        draggedItem?.zPosition = 1
+        activeTouch = nil
+        draggedItem = nil
         originalCell = nil
         dragOffset = .zero
+    }
+
+    // MARK: - Debug Validation
+
+    private func assertBoardItemsMatchStoredCells() {
+#if DEBUG
+        // 화면에 보이는 재료 노드와 itemsByCell에 저장된 재료의 개수가 같은지 확인합니다.
+        let visibleItems = boardNode.children.compactMap { $0 as? IngredientNode }
+        assert(
+            visibleItems.count == itemsByCell.count,
+            "화면의 재료 개수와 itemsByCell에 저장된 재료 개수가 다릅니다."
+        )
+
+        // 화면에 보이는 각 재료가 자신의 cell 주소로 itemsByCell에도 등록되어 있는지 확인합니다.
+        for item in visibleItems {
+            guard let storedItem = itemsByCell[item.cell] else {
+                assertionFailure("화면에는 재료가 있지만 해당 칸이 itemsByCell에 저장되어 있지 않습니다.")
+                continue
+            }
+
+            assert(
+                storedItem === item,
+                "화면의 재료와 itemsByCell에 저장된 재료가 서로 다른 객체입니다."
+            )
+        }
+
+        // itemsByCell의 칸 주소, 재료가 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
+        for (cell, item) in itemsByCell {
+            assert(item.cell == cell, "itemsByCell의 칸과 재료가 기억하는 칸이 다릅니다.")
+            assert(item.parent === boardNode, "itemsByCell에는 재료가 있지만 화면에는 존재하지 않습니다.")
+        }
+
+        if let selectedItem {
+            assert(selectedItem.parent === boardNode, "선택된 재료가 화면에 존재하지 않습니다.")
+        }
+#endif
+    }
+
+    // MARK: - Selection
+
+    private func makeSelectionIndicator() -> SKShapeNode {
+        let path = CGMutablePath()
+
+        // 아이템 중심에서 선택 표시 꼭짓점까지의 거리입니다.
+        // 값을 키우면 네 개의 ㄱ자 표시가 아이템에서 더 멀어집니다.
+        let halfSize = cellSize * 0.36
+
+        // 각 꼭짓점에서 가로·세로로 뻗는 선의 길이입니다.
+        let cornerLength = cellSize * 0.14
+
+        // 왼쪽 위 ┌
+        path.move(to: CGPoint(x: -halfSize + cornerLength, y: halfSize))
+        path.addLine(to: CGPoint(x: -halfSize, y: halfSize))
+        path.addLine(to: CGPoint(x: -halfSize, y: halfSize - cornerLength))
+
+        // 오른쪽 위 ┐
+        path.move(to: CGPoint(x: halfSize - cornerLength, y: halfSize))
+        path.addLine(to: CGPoint(x: halfSize, y: halfSize))
+        path.addLine(to: CGPoint(x: halfSize, y: halfSize - cornerLength))
+
+        // 왼쪽 아래 └
+        path.move(to: CGPoint(x: -halfSize, y: -halfSize + cornerLength))
+        path.addLine(to: CGPoint(x: -halfSize, y: -halfSize))
+        path.addLine(to: CGPoint(x: -halfSize + cornerLength, y: -halfSize))
+
+        // 오른쪽 아래 ┘
+        path.move(to: CGPoint(x: halfSize, y: -halfSize + cornerLength))
+        path.addLine(to: CGPoint(x: halfSize, y: -halfSize))
+        path.addLine(to: CGPoint(x: halfSize - cornerLength, y: -halfSize))
+
+        let indicator = SKShapeNode(path: path)
+        indicator.strokeColor = SKColor(
+            red: 0.12,
+            green: 0.78,
+            blue: 0.88,
+            alpha: 1
+        )
+        indicator.fillColor = .clear
+        indicator.lineWidth = 4
+        indicator.lineCap = .round
+        indicator.lineJoin = .round
+        // 아이템보다 앞에 그려 선택 여부가 항상 보이도록 합니다.
+        indicator.zPosition = 1
+        indicator.isHidden = true
+        indicator.name = "selectionIndicator"
+        return indicator
+    }
+
+    private func select(_ item: IngredientNode) {
+        clearSelection()
+        selectedItem = item
+        item.isSelected = true
+    }
+
+    private func clearSelection() {
+        selectedItem?.isSelected = false
+        selectedItem = nil
+    }
+
+    private func ingredientNode(at position: CGPoint) -> IngredientNode? {
+        // 선택 테두리는 아이템의 자식 노드이므로, 테두리를 눌러도 부모 재료를 찾도록 위로 탐색합니다.
+        var node: SKNode? = atPoint(position)
+
+        while let currentNode = node {
+            if let item = currentNode as? IngredientNode,
+               item.name == "ingredient" {
+                return item
+            }
+
+            node = currentNode.parent
+        }
+
+        return nil
     }
 
     private func constrainedPosition(
