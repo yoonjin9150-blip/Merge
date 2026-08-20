@@ -40,6 +40,17 @@ final class MergeBoardScene: SKScene {
                 return nil
             }
         }
+
+        // 생성기를 탭했을 때 만들어지는 아이템입니다.
+        // 재료 아이템은 다른 아이템을 생성하지 않으므로 nil입니다.
+        var spawnedItemKind: BoardItemKind? {
+            switch self {
+            case .grainSack:
+                return .wheat
+            case .wheat, .flour:
+                return nil
+            }
+        }
     }
 
     // 보드 안 한 칸의 주소입니다.
@@ -132,6 +143,20 @@ final class MergeBoardScene: SKScene {
     // 손가락을 아이템의 가장자리에서 눌러도 아이템이 갑자기 점프하지 않게 합니다.
     private var dragOffset = CGPoint.zero
 
+    // 손가락이 이 거리 이상 움직이면 탭이 아니라 드래그로 판단합니다.
+    // 작은 손떨림 때문에 생성기 탭이 드래그로 오인되지 않도록 여유를 둡니다.
+    private let dragRecognitionDistance: CGFloat = 8
+
+    // 현재 터치가 시작된 화면 좌표입니다. 이동 거리를 계산하는 기준입니다.
+    private var touchStartLocation = CGPoint.zero
+
+    // 현재 터치가 드래그 기준 거리를 넘었는지 기억합니다.
+    private var didRecognizeDrag = false
+
+    // 이번 터치가 시작되기 전부터 해당 아이템이 선택되어 있었는지 기억합니다.
+    // touchesBegan에서 선택 표시를 숨긴 뒤에도 두 번째 탭인지 판단하기 위해 필요합니다.
+    private var wasSelectedAtTouchStart = false
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -150,6 +175,9 @@ final class MergeBoardScene: SKScene {
         draggedItem = nil
         activeTouch = nil
         originalCell = nil
+        touchStartLocation = .zero
+        didRecognizeDrag = false
+        wasSelectedAtTouchStart = false
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
         // 넓어진 픽셀 프레임까지 화면 안에 들어오도록 보드 자체에는 조금 더 여백을 둡니다.
@@ -524,12 +552,17 @@ final class MergeBoardScene: SKScene {
             return
         }
 
+        // 선택 표시를 숨기기 전에, 이번 터치가 선택된 아이템을 다시 누른 것인지 저장합니다.
+        wasSelectedAtTouchStart = selectedItem === item && item.isSelected
+
         // 손가락으로 누르고 드래그하는 동안에는 꼭짓점 선택 표시를 숨깁니다.
         // 움직이지 않고 탭한 경우에도 손가락을 뗀 뒤 다시 표시합니다.
         clearSelection()
         activeTouch = touch
         draggedItem = item
         originalCell = item.cell
+        touchStartLocation = touchLocation
+        didRecognizeDrag = false
         dragOffset = CGPoint(
             x: item.position.x - touchLocation.x,
             y: item.position.y - touchLocation.y
@@ -549,6 +582,22 @@ final class MergeBoardScene: SKScene {
         }
 
         let touchLocation = activeTouch.location(in: self)
+
+        if !didRecognizeDrag {
+            let horizontalDistance = touchLocation.x - touchStartLocation.x
+            let verticalDistance = touchLocation.y - touchStartLocation.y
+            let squaredDistance = (horizontalDistance * horizontalDistance)
+                + (verticalDistance * verticalDistance)
+            let squaredThreshold = dragRecognitionDistance * dragRecognitionDistance
+
+            // 기준 거리보다 적게 움직였다면 아직 탭일 수 있으므로 아이템을 움직이지 않습니다.
+            guard squaredDistance >= squaredThreshold else {
+                return
+            }
+
+            didRecognizeDrag = true
+        }
+
         let proposedPosition = CGPoint(
             x: touchLocation.x + dragOffset.x,
             y: touchLocation.y + dragOffset.y
@@ -569,6 +618,23 @@ final class MergeBoardScene: SKScene {
 
         guard let item = draggedItem, let startCell = originalCell else {
             finishDragging()
+            return
+        }
+
+        // 드래그 기준 거리보다 적게 움직였다면 칸 이동이 아닌 탭으로 처리합니다.
+        if !didRecognizeDrag {
+            let shouldActivateGenerator = wasSelectedAtTouchStart
+            item.position = positionForCell(startCell)
+            finishDragging()
+            select(item)
+
+            // 첫 번째 탭은 선택만 합니다.
+            // 이미 선택된 생성기를 다시 탭했을 때만 빈 칸에 아이템을 생성합니다.
+            if shouldActivateGenerator {
+                spawnItemIfPossible(from: item)
+            }
+
+            assertBoardItemsMatchStoredCells()
             return
         }
 
@@ -599,6 +665,42 @@ final class MergeBoardScene: SKScene {
             select(itemToSelect)
         }
         assertBoardItemsMatchStoredCells()
+    }
+
+    // MARK: - Generator
+
+    private func spawnItemIfPossible(from generator: BoardItemNode) {
+        // 생성기 종류가 무엇을 만드는지 확인합니다.
+        // 밀·밀가루 같은 일반 재료를 다시 탭한 경우에는 아무것도 생성하지 않습니다.
+        guard let spawnedKind = generator.kind.spawnedItemKind,
+              let emptyCell = firstEmptyCell() else {
+            return
+        }
+
+        // 빈 칸을 찾은 뒤 화면 노드와 itemsByCell 상태를 동시에 추가합니다.
+        // 생성 애니메이션은 후속 작업에서 이 지점에 연결합니다.
+        addBoardItem(
+            spawnedKind,
+            column: emptyCell.column,
+            row: emptyCell.row
+        )
+    }
+
+    private func firstEmptyCell() -> BoardCell? {
+        // row 0의 왼쪽부터 오른쪽으로 확인한 뒤 다음 행으로 내려갑니다.
+        // 따라서 최초 곡물 포대가 1행 1열을 차지하면 첫 밀은 1행 2열에 생성됩니다.
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let cell = BoardCell(column: column, row: row)
+
+                if itemsByCell[cell] == nil {
+                    return cell
+                }
+            }
+        }
+
+        // 63칸이 모두 차 있으면 기존 아이템을 덮어쓰지 않고 생성을 취소합니다.
+        return nil
     }
 
     // MARK: - Grid Snap
@@ -707,6 +809,9 @@ final class MergeBoardScene: SKScene {
         draggedItem = nil
         originalCell = nil
         dragOffset = .zero
+        touchStartLocation = .zero
+        didRecognizeDrag = false
+        wasSelectedAtTouchStart = false
     }
 
     // MARK: - Debug Validation
