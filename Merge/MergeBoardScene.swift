@@ -9,84 +9,6 @@ import SpriteKit
 
 final class MergeBoardScene: SKScene {
 
-    // 생성기와 재료를 하나의 보드 아이템 타입으로 관리합니다.
-    // 화면에 놓이는 대상은 같지만, 생성 여부와 머지 여부는 종류별 규칙으로 구분합니다.
-    private enum BoardItemKind {
-        case grainSack
-        case wheat
-        case flour
-
-        var emoji: String {
-            switch self {
-            case .grainSack:
-                // 곡물 포대 이미지가 준비되기 전까지 사용하는 임시 이모지입니다.
-                return "🧺"
-            case .wheat:
-                return "🌾"
-            case .flour:
-                return "🥣"
-            }
-        }
-
-        // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
-        // 밀가루 이후 단계는 전체 머지 트리를 구현할 때 추가합니다.
-        var nextKind: BoardItemKind? {
-            switch self {
-            case .grainSack:
-                return nil
-            case .wheat:
-                return .flour
-            case .flour:
-                return nil
-            }
-        }
-
-        // 생성기를 탭했을 때 만들어지는 아이템입니다.
-        // 재료 아이템은 다른 아이템을 생성하지 않으므로 nil입니다.
-        var spawnedItemKind: BoardItemKind? {
-            switch self {
-            case .grainSack:
-                return .wheat
-            case .wheat, .flour:
-                return nil
-            }
-        }
-    }
-
-    // 보드 안 한 칸의 주소입니다.
-    // 화면 위치(CGPoint)와 게임 규칙에서 사용하는 행·열을 구분하기 위해 별도 타입으로 둡니다.
-    private struct BoardCell: Hashable {
-        let column: Int
-        let row: Int
-    }
-
-    // 생성기와 재료의 화면 표시, 현재 칸, 선택 상태를 함께 보관하는 보드 아이템 노드입니다.
-    private final class BoardItemNode: SKLabelNode {
-        let kind: BoardItemKind
-        var cell: BoardCell
-        var selectionIndicator: SKShapeNode?
-        var isSelected = false {
-            didSet {
-                selectionIndicator?.isHidden = !isSelected
-            }
-        }
-
-        init(
-            kind: BoardItemKind,
-            cell: BoardCell
-        ) {
-            self.kind = kind
-            self.cell = cell
-            super.init()
-            text = kind.emoji
-        }
-
-        @available(*, unavailable)
-        required init?(coder aDecoder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-    }
-
     // MARK: - 보드 규칙
 
     // 가로 칸 수입니다. Hollywood Merge와 같이 7칸으로 설정했습니다.
@@ -524,18 +446,9 @@ final class MergeBoardScene: SKScene {
             cell: cell
         )
 
-        item.fontSize = cellSize * 0.58
-        item.verticalAlignmentMode = .center
-        item.horizontalAlignmentMode = .center
+        item.configureAppearance(cellSize: cellSize)
         item.position = positionForCell(cell)
         item.zPosition = 1
-        item.name = "boardItem"
-
-        // 선택 상태를 눈으로 검증하기 위한 임시 표시입니다.
-        // 실제 디자인은 이후 UI 작업에서 교체합니다.
-        let selectionIndicator = makeSelectionIndicator()
-        item.addChild(selectionIndicator)
-        item.selectionIndicator = selectionIndicator
 
         boardNode.addChild(item)
         itemsByCell[cell] = item
@@ -877,54 +790,6 @@ final class MergeBoardScene: SKScene {
     }
 
     // MARK: - Selection
-
-    private func makeSelectionIndicator() -> SKShapeNode {
-        let path = CGMutablePath()
-
-        // 아이템 중심에서 선택 표시 꼭짓점까지의 거리입니다.
-        // 값을 키우면 네 개의 ㄱ자 표시가 아이템에서 더 멀어집니다.
-        let halfSize = cellSize * 0.36
-
-        // 각 꼭짓점에서 가로·세로로 뻗는 선의 길이입니다.
-        let cornerLength = cellSize * 0.14
-
-        // 왼쪽 위 ┌
-        path.move(to: CGPoint(x: -halfSize + cornerLength, y: halfSize))
-        path.addLine(to: CGPoint(x: -halfSize, y: halfSize))
-        path.addLine(to: CGPoint(x: -halfSize, y: halfSize - cornerLength))
-
-        // 오른쪽 위 ┐
-        path.move(to: CGPoint(x: halfSize - cornerLength, y: halfSize))
-        path.addLine(to: CGPoint(x: halfSize, y: halfSize))
-        path.addLine(to: CGPoint(x: halfSize, y: halfSize - cornerLength))
-
-        // 왼쪽 아래 └
-        path.move(to: CGPoint(x: -halfSize, y: -halfSize + cornerLength))
-        path.addLine(to: CGPoint(x: -halfSize, y: -halfSize))
-        path.addLine(to: CGPoint(x: -halfSize + cornerLength, y: -halfSize))
-
-        // 오른쪽 아래 ┘
-        path.move(to: CGPoint(x: halfSize, y: -halfSize + cornerLength))
-        path.addLine(to: CGPoint(x: halfSize, y: -halfSize))
-        path.addLine(to: CGPoint(x: halfSize - cornerLength, y: -halfSize))
-
-        let indicator = SKShapeNode(path: path)
-        indicator.strokeColor = SKColor(
-            red: 0.12,
-            green: 0.78,
-            blue: 0.88,
-            alpha: 1
-        )
-        indicator.fillColor = .clear
-        indicator.lineWidth = 4
-        indicator.lineCap = .round
-        indicator.lineJoin = .round
-        // 아이템보다 앞에 그려 선택 여부가 항상 보이도록 합니다.
-        indicator.zPosition = 1
-        indicator.isHidden = true
-        indicator.name = "selectionIndicator"
-        return indicator
-    }
 
     private func select(_ item: BoardItemNode) {
         clearSelection()
