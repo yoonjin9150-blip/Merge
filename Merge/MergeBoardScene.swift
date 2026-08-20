@@ -83,12 +83,15 @@ final class MergeBoardScene: SKScene {
 
     // 버터 스카이 픽셀 보드에서 공통으로 사용하는 색입니다.
     private let outlineColor = SKColor(red: 0.07, green: 0.08, blue: 0.22, alpha: 1)
-    private let frameColor = SKColor(red: 1, green: 0.79, blue: 0.24, alpha: 1)
+    private let frameColor = SKColor(red: 1, green: 0.82, blue: 0.28, alpha: 1)
     private let frameHighlightColor = SKColor(red: 1, green: 0.91, blue: 0.48, alpha: 1)
-    private let frameShadeColor = SKColor(red: 0.93, green: 0.58, blue: 0.12, alpha: 1)
+    private let frameShadeColor = SKColor(red: 0.96, green: 0.64, blue: 0.14, alpha: 1)
     private let shadowColor = SKColor(red: 0.20, green: 0.38, blue: 0.56, alpha: 0.58)
     private let coralColor = SKColor(red: 1, green: 0.43, blue: 0.35, alpha: 1)
     private let creamColor = SKColor(red: 1, green: 0.96, blue: 0.83, alpha: 1)
+    private let tileHighlightColor = SKColor(red: 1, green: 0.99, blue: 0.92, alpha: 1)
+    private let tileShadeColor = SKColor(red: 0.98, green: 0.91, blue: 0.74, alpha: 1)
+    private let studHighlightColor = SKColor(red: 1, green: 0.73, blue: 0.61, alpha: 1)
 
     // 보드의 칸과 아이템을 담는 부모 노드입니다.
     private let boardNode = SKNode()
@@ -144,7 +147,7 @@ final class MergeBoardScene: SKScene {
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
         // 넓어진 픽셀 프레임까지 화면 안에 들어오도록 보드 자체에는 조금 더 여백을 둡니다.
-        let horizontalPadding: CGFloat = 26
+        let horizontalPadding: CGFloat = 34
         let verticalPadding: CGFloat = 14
 
         let availableWidth = size.width - (horizontalPadding * 2)
@@ -292,6 +295,14 @@ final class MergeBoardScene: SKScene {
                 size: CGSize(width: 6, height: 6)
             )
             studCenter.zPosition = 0.1
+
+            let studGlint = SKSpriteNode(
+                color: studHighlightColor,
+                size: CGSize(width: 2, height: 2)
+            )
+            studGlint.position = CGPoint(x: -1, y: 1)
+            studGlint.zPosition = 0.1
+            studCenter.addChild(studGlint)
             studOutline.addChild(studCenter)
             boardNode.addChild(studOutline)
         }
@@ -324,6 +335,29 @@ final class MergeBoardScene: SKScene {
         )
         leftHighlight.zPosition = -2
         boardNode.addChild(leftHighlight)
+
+        // 아래쪽과 오른쪽의 주황 띠는 빛이 닿지 않는 면을 표현합니다.
+        let bottomShade = SKSpriteNode(
+            color: frameShadeColor,
+            size: CGSize(width: boardWidth - 12, height: 3)
+        )
+        bottomShade.position = CGPoint(
+            x: boardCenter.x,
+            y: boardCenter.y - (boardHeight / 2) - 9
+        )
+        bottomShade.zPosition = -2
+        boardNode.addChild(bottomShade)
+
+        let rightShade = SKSpriteNode(
+            color: frameShadeColor,
+            size: CGSize(width: 3, height: boardHeight - 12)
+        )
+        rightShade.position = CGPoint(
+            x: boardCenter.x + (boardWidth / 2) + 9,
+            y: boardCenter.y
+        )
+        rightShade.zPosition = -2
+        boardNode.addChild(rightShade)
     }
 
     private func addCenterTabs(boardCenter: CGPoint, boardHeight: CGFloat) {
@@ -353,6 +387,14 @@ final class MergeBoardScene: SKScene {
                 size: CGSize(width: 6, height: 6)
             )
             tabCenter.zPosition = 0.2
+
+            let tabGlint = SKSpriteNode(
+                color: studHighlightColor,
+                size: CGSize(width: 2, height: 2)
+            )
+            tabGlint.position = CGPoint(x: -1, y: 1)
+            tabGlint.zPosition = 0.1
+            tabCenter.addChild(tabGlint)
             tabOutline.addChild(tabCenter)
             boardNode.addChild(tabOutline)
         }
@@ -361,15 +403,59 @@ final class MergeBoardScene: SKScene {
     private func drawCells() {
         for row in 0..<rows {
             for column in 0..<columns {
-                // 각 타일을 칸보다 2pt만 작게 만들어 남색 바탕이 가는 격자선으로 보이게 합니다.
-                let cellTile = SKSpriteNode(
-                    color: creamColor,
-                    size: CGSize(width: cellSize - 2, height: cellSize - 2)
+                // 레퍼런스처럼 네 모서리를 2pt만큼 잘라낸 크림색 픽셀 타일입니다.
+                // 칸보다 2pt 작아서 뒤의 남색 바탕이 가는 격자선으로 보입니다.
+                let tileSize = CGSize(width: cellSize - 2, height: cellSize - 2)
+                let cellTile = makeSteppedPanel(
+                    size: tileSize,
+                    cornerCut: 2,
+                    color: creamColor
                 )
                 cellTile.position = positionForCell(column: column, row: row)
                 cellTile.zPosition = 0
                 cellTile.name = "boardCell"
+
+                // 타일 위쪽에는 밝은 1pt 선, 아래쪽에는 베이지 2pt 선을 넣어
+                // 평면 사각형이 아니라 살짝 도톰한 픽셀 타일처럼 보이게 합니다.
+                let topHighlight = SKSpriteNode(
+                    color: tileHighlightColor,
+                    size: CGSize(width: cellSize - 6, height: 1)
+                )
+                topHighlight.position = CGPoint(x: 0, y: (tileSize.height / 2) - 1.5)
+                topHighlight.zPosition = 0.1
+                cellTile.addChild(topHighlight)
+
+                let bottomShade = SKSpriteNode(
+                    color: tileShadeColor,
+                    size: CGSize(width: cellSize - 6, height: 1)
+                )
+                bottomShade.position = CGPoint(x: 0, y: -(tileSize.height / 2) + 1.5)
+                bottomShade.zPosition = 0.1
+                cellTile.addChild(bottomShade)
+
                 boardNode.addChild(cellTile)
+            }
+        }
+
+        addGridIntersections()
+    }
+
+    private func addGridIntersections() {
+        // 레퍼런스의 격자 교차점은 선보다 한 픽셀 더 굵은 작은 남색 사각형입니다.
+        // 칸의 경계가 만나는 내부 지점에만 추가하며, 행·열과 터치 판정에는 영향을 주지 않습니다.
+        for rowBoundary in 1..<rows {
+            for columnBoundary in 1..<columns {
+                let intersection = SKSpriteNode(
+                    color: outlineColor,
+                    size: CGSize(width: 3, height: 3)
+                )
+                intersection.position = CGPoint(
+                    x: boardOrigin.x + (CGFloat(columnBoundary) * cellSize),
+                    y: boardOrigin.y + (CGFloat(rowBoundary) * cellSize)
+                )
+                intersection.zPosition = 0.2
+                intersection.name = "gridIntersection"
+                boardNode.addChild(intersection)
             }
         }
     }
