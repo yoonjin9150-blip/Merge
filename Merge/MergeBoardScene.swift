@@ -78,6 +78,17 @@ final class MergeBoardScene: SKScene {
     // 세로 칸 수입니다. Hollywood Merge와 같이 9칸으로 설정했습니다.
     private let rows = 9
 
+    // 보드의 크기와 위치를 2pt 단위에 맞춰 픽셀 경계가 흐려지지 않게 합니다.
+    private let pixelUnit: CGFloat = 2
+
+    // 버터 스카이 픽셀 보드에서 공통으로 사용하는 색입니다.
+    private let outlineColor = SKColor(red: 0.07, green: 0.08, blue: 0.22, alpha: 1)
+    private let frameColor = SKColor(red: 1, green: 0.79, blue: 0.24, alpha: 1)
+    private let shadowColor = SKColor(red: 0.20, green: 0.38, blue: 0.56, alpha: 0.75)
+    private let coralColor = SKColor(red: 1, green: 0.43, blue: 0.35, alpha: 1)
+    private let creamColor = SKColor(red: 1, green: 0.96, blue: 0.83, alpha: 1)
+    private let alternateCreamColor = SKColor(red: 0.98, green: 0.92, blue: 0.76, alpha: 1)
+
     // 보드의 칸과 아이템을 담는 부모 노드입니다.
     private let boardNode = SKNode()
 
@@ -138,50 +149,163 @@ final class MergeBoardScene: SKScene {
         let availableHeight = size.height - (verticalPadding * 2)
 
         // 7 × 9 보드가 SpriteKit 영역 안에 모두 들어가도록 칸 크기를 계산합니다.
-        cellSize = min(
+        // 계산 결과를 2pt 단위로 내림해 칸의 선과 중심이 픽셀 경계에 맞도록 합니다.
+        let calculatedCellSize = min(
             availableWidth / CGFloat(columns),
             availableHeight / CGFloat(rows)
         )
+        cellSize = floor(calculatedCellSize / pixelUnit) * pixelUnit
 
         let boardWidth = cellSize * CGFloat(columns)
         let boardHeight = cellSize * CGFloat(rows)
 
         // 보드 전체가 SpriteKit 영역의 중앙에 오도록 시작점을 계산합니다.
         boardOrigin = CGPoint(
-            x: (size.width - boardWidth) / 2,
-            y: (size.height - boardHeight) / 2
+            x: ((size.width - boardWidth) / 2).rounded(),
+            y: ((size.height - boardHeight) / 2).rounded()
         )
 
+        drawBoardFrame(width: boardWidth, height: boardHeight)
         drawCells()
         addTestItems()
         assertBoardItemsMatchStoredCells()
     }
 
+    private func drawBoardFrame(width: CGFloat, height: CGFloat) {
+        let boardCenter = CGPoint(
+            x: boardOrigin.x + (width / 2),
+            y: boardOrigin.y + (height / 2)
+        )
+
+        // 오른쪽 아래로 밀린 블록 그림자가 보드가 떠 있는 장난감 판처럼 보이게 합니다.
+        let shadow = makeSteppedPanel(
+            size: CGSize(width: width + 24, height: height + 24),
+            cornerCut: 8,
+            color: shadowColor
+        )
+        shadow.position = CGPoint(x: boardCenter.x + 6, y: boardCenter.y - 6)
+        shadow.zPosition = -4
+        boardNode.addChild(shadow)
+
+        // 가장 바깥의 짙은 남색 픽셀 외곽선입니다.
+        let outerOutline = makeSteppedPanel(
+            size: CGSize(width: width + 24, height: height + 24),
+            cornerCut: 8,
+            color: outlineColor
+        )
+        outerOutline.position = boardCenter
+        outerOutline.zPosition = -3
+        boardNode.addChild(outerOutline)
+
+        // 외곽선 안쪽의 버터 노랑 프레임입니다.
+        let butterFrame = makeSteppedPanel(
+            size: CGSize(width: width + 18, height: height + 18),
+            cornerCut: 6,
+            color: frameColor
+        )
+        butterFrame.position = boardCenter
+        butterFrame.zPosition = -2
+        boardNode.addChild(butterFrame)
+
+        // 칸 사이의 짙은 남색 선으로 보이는 내부 바탕입니다.
+        let gridBackground = SKSpriteNode(
+            color: outlineColor,
+            size: CGSize(width: width + 2, height: height + 2)
+        )
+        gridBackground.position = boardCenter
+        gridBackground.zPosition = -1
+        boardNode.addChild(gridBackground)
+
+        addFrameStuds(boardCenter: boardCenter, boardWidth: width, boardHeight: height)
+    }
+
+    private func makeSteppedPanel(
+        size: CGSize,
+        cornerCut: CGFloat,
+        color: SKColor
+    ) -> SKShapeNode {
+        let halfWidth = size.width / 2
+        let halfHeight = size.height / 2
+        let path = CGMutablePath()
+
+        // 대각선을 쓰지 않고 수평·수직선만 이어 네 모서리를 계단식으로 잘라냅니다.
+        path.move(to: CGPoint(x: -halfWidth + cornerCut, y: halfHeight))
+        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: halfHeight))
+        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: halfHeight - cornerCut))
+        path.addLine(to: CGPoint(x: halfWidth, y: halfHeight - cornerCut))
+        path.addLine(to: CGPoint(x: halfWidth, y: -halfHeight + cornerCut))
+        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: -halfHeight + cornerCut))
+        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: -halfHeight))
+        path.addLine(to: CGPoint(x: -halfWidth + cornerCut, y: -halfHeight))
+        path.addLine(to: CGPoint(x: -halfWidth + cornerCut, y: -halfHeight + cornerCut))
+        path.addLine(to: CGPoint(x: -halfWidth, y: -halfHeight + cornerCut))
+        path.addLine(to: CGPoint(x: -halfWidth, y: halfHeight - cornerCut))
+        path.addLine(to: CGPoint(x: -halfWidth + cornerCut, y: halfHeight - cornerCut))
+        path.closeSubpath()
+
+        let panel = SKShapeNode(path: path)
+        panel.fillColor = color
+        panel.strokeColor = .clear
+        panel.isAntialiased = false
+        return panel
+    }
+
+    private func addFrameStuds(
+        boardCenter: CGPoint,
+        boardWidth: CGFloat,
+        boardHeight: CGFloat
+    ) {
+        let horizontalOffset = (boardWidth / 2) + 6
+        let verticalOffset = (boardHeight / 2) + 6
+        let studPositions = [
+            CGPoint(x: boardCenter.x - horizontalOffset, y: boardCenter.y + verticalOffset),
+            CGPoint(x: boardCenter.x + horizontalOffset, y: boardCenter.y + verticalOffset),
+            CGPoint(x: boardCenter.x - horizontalOffset, y: boardCenter.y - verticalOffset),
+            CGPoint(x: boardCenter.x + horizontalOffset, y: boardCenter.y - verticalOffset)
+        ]
+
+        for position in studPositions {
+            let studOutline = SKSpriteNode(
+                color: outlineColor,
+                size: CGSize(width: 8, height: 8)
+            )
+            studOutline.position = position
+            studOutline.zPosition = -0.8
+
+            let studCenter = SKSpriteNode(
+                color: coralColor,
+                size: CGSize(width: 4, height: 4)
+            )
+            studCenter.zPosition = 0.1
+            studOutline.addChild(studCenter)
+            boardNode.addChild(studOutline)
+        }
+    }
+
     private func drawCells() {
         for row in 0..<rows {
             for column in 0..<columns {
-                let cell = SKShapeNode(
-                    rectOf: CGSize(width: cellSize - 3, height: cellSize - 3),
-                    cornerRadius: 7
+                // 칸 사이에 2pt의 짙은 남색 바탕이 보이도록 외곽 타일을 작게 만듭니다.
+                let cellOutline = SKSpriteNode(
+                    color: outlineColor,
+                    size: CGSize(width: cellSize - 2, height: cellSize - 2)
                 )
+                cellOutline.position = positionForCell(column: column, row: row)
+                cellOutline.zPosition = 0
+                cellOutline.name = "boardCell"
 
-                cell.position = positionForCell(column: column, row: row)
-                cell.fillColor = SKColor(
-                    red: 0.95,
-                    green: 0.88,
-                    blue: 0.74,
-                    alpha: 1
+                // 아주 미세한 두 가지 크림색을 번갈아 사용해 단조로움을 줄입니다.
+                let tileColor = (row + column).isMultiple(of: 2)
+                    ? creamColor
+                    : alternateCreamColor
+                let cellFill = SKSpriteNode(
+                    color: tileColor,
+                    size: CGSize(width: cellSize - 6, height: cellSize - 6)
                 )
-                cell.strokeColor = SKColor(
-                    red: 0.78,
-                    green: 0.65,
-                    blue: 0.47,
-                    alpha: 1
-                )
-                cell.lineWidth = 1
-                cell.zPosition = 0
+                cellFill.zPosition = 0.1
+                cellOutline.addChild(cellFill)
 
-                boardNode.addChild(cell)
+                boardNode.addChild(cellOutline)
             }
         }
     }
