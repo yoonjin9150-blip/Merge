@@ -514,6 +514,11 @@ final class MergeBoardScene: SKScene {
         row: Int
     ) -> BoardItemNode {
         let cell = BoardCell(column: column, row: row)
+
+        // 같은 칸에 두 노드를 추가하면 화면과 itemsByCell이 어긋납니다.
+        // 호출하는 쪽은 반드시 빈 칸을 확인하거나 기존 아이템을 제거한 뒤 추가해야 합니다.
+        precondition(itemsByCell[cell] == nil, "이미 아이템이 있는 칸에는 새 아이템을 추가할 수 없습니다.")
+
         let item = BoardItemNode(
             kind: kind,
             cell: cell
@@ -583,19 +588,9 @@ final class MergeBoardScene: SKScene {
 
         let touchLocation = activeTouch.location(in: self)
 
-        if !didRecognizeDrag {
-            let horizontalDistance = touchLocation.x - touchStartLocation.x
-            let verticalDistance = touchLocation.y - touchStartLocation.y
-            let squaredDistance = (horizontalDistance * horizontalDistance)
-                + (verticalDistance * verticalDistance)
-            let squaredThreshold = dragRecognitionDistance * dragRecognitionDistance
-
-            // 기준 거리보다 적게 움직였다면 아직 탭일 수 있으므로 아이템을 움직이지 않습니다.
-            guard squaredDistance >= squaredThreshold else {
-                return
-            }
-
-            didRecognizeDrag = true
+        // 기준 거리보다 적게 움직였다면 아직 탭일 수 있으므로 아이템을 움직이지 않습니다.
+        guard recognizeDragIfNeeded(at: touchLocation) else {
+            return
         }
 
         let proposedPosition = CGPoint(
@@ -621,8 +616,10 @@ final class MergeBoardScene: SKScene {
             return
         }
 
-        // 드래그 기준 거리보다 적게 움직였다면 칸 이동이 아닌 탭으로 처리합니다.
-        if !didRecognizeDrag {
+        let touchEndLocation = activeTouch.location(in: self)
+
+        // 손을 뗀 최종 위치까지 확인해 드래그 기준 거리보다 적게 움직였다면 탭으로 처리합니다.
+        if !recognizeDragIfNeeded(at: touchEndLocation) {
             let shouldActivateGenerator = wasSelectedAtTouchStart
             item.position = positionForCell(startCell)
             finishDragging()
@@ -637,6 +634,13 @@ final class MergeBoardScene: SKScene {
             assertBoardItemsMatchStoredCells()
             return
         }
+
+        // 마지막 touchesMoved 이후 손가락이 더 움직였을 수 있으므로 최종 위치를 한 번 더 반영합니다.
+        let finalPosition = CGPoint(
+            x: touchEndLocation.x + dragOffset.x,
+            y: touchEndLocation.y + dragOffset.y
+        )
+        item.position = constrainedPosition(for: item, proposedPosition: finalPosition)
 
         let targetCell = nearestCell(to: item.position)
         let itemToSelect = resolveDrop(of: item, from: startCell, to: targetCell)
@@ -665,6 +669,24 @@ final class MergeBoardScene: SKScene {
             select(itemToSelect)
         }
         assertBoardItemsMatchStoredCells()
+    }
+
+    private func recognizeDragIfNeeded(at touchLocation: CGPoint) -> Bool {
+        if didRecognizeDrag {
+            return true
+        }
+
+        let horizontalDistance = touchLocation.x - touchStartLocation.x
+        let verticalDistance = touchLocation.y - touchStartLocation.y
+        let squaredDistance = (horizontalDistance * horizontalDistance)
+            + (verticalDistance * verticalDistance)
+        let squaredThreshold = dragRecognitionDistance * dragRecognitionDistance
+
+        if squaredDistance >= squaredThreshold {
+            didRecognizeDrag = true
+        }
+
+        return didRecognizeDrag
     }
 
     // MARK: - Generator
@@ -840,9 +862,13 @@ final class MergeBoardScene: SKScene {
 
         // itemsByCell의 칸 주소, 아이템이 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
         for (cell, item) in itemsByCell {
+            assert((0..<columns).contains(cell.column), "보드 범위를 벗어난 열에 아이템이 저장되었습니다.")
+            assert((0..<rows).contains(cell.row), "보드 범위를 벗어난 행에 아이템이 저장되었습니다.")
             assert(item.cell == cell, "itemsByCell의 칸과 아이템이 기억하는 칸이 다릅니다.")
             assert(item.parent === boardNode, "itemsByCell에는 아이템이 있지만 화면에는 존재하지 않습니다.")
         }
+
+        assert(itemsByCell.count <= columns * rows, "보드의 전체 칸 수보다 많은 아이템이 저장되었습니다.")
 
         if let selectedItem {
             assert(selectedItem.parent === boardNode, "선택된 아이템이 화면에 존재하지 않습니다.")
