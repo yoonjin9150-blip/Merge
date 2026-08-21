@@ -9,84 +9,6 @@ import SpriteKit
 
 final class MergeBoardScene: SKScene {
 
-    // 생성기와 재료를 하나의 보드 아이템 타입으로 관리합니다.
-    // 화면에 놓이는 대상은 같지만, 생성 여부와 머지 여부는 종류별 규칙으로 구분합니다.
-    private enum BoardItemKind {
-        case grainSack
-        case wheat
-        case flour
-
-        var emoji: String {
-            switch self {
-            case .grainSack:
-                // 곡물 포대 이미지가 준비되기 전까지 사용하는 임시 이모지입니다.
-                return "🧺"
-            case .wheat:
-                return "🌾"
-            case .flour:
-                return "🥣"
-            }
-        }
-
-        // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
-        // 밀가루 이후 단계는 전체 머지 트리를 구현할 때 추가합니다.
-        var nextKind: BoardItemKind? {
-            switch self {
-            case .grainSack:
-                return nil
-            case .wheat:
-                return .flour
-            case .flour:
-                return nil
-            }
-        }
-
-        // 생성기를 탭했을 때 만들어지는 아이템입니다.
-        // 재료 아이템은 다른 아이템을 생성하지 않으므로 nil입니다.
-        var spawnedItemKind: BoardItemKind? {
-            switch self {
-            case .grainSack:
-                return .wheat
-            case .wheat, .flour:
-                return nil
-            }
-        }
-    }
-
-    // 보드 안 한 칸의 주소입니다.
-    // 화면 위치(CGPoint)와 게임 규칙에서 사용하는 행·열을 구분하기 위해 별도 타입으로 둡니다.
-    private struct BoardCell: Hashable {
-        let column: Int
-        let row: Int
-    }
-
-    // 생성기와 재료의 화면 표시, 현재 칸, 선택 상태를 함께 보관하는 보드 아이템 노드입니다.
-    private final class BoardItemNode: SKLabelNode {
-        let kind: BoardItemKind
-        var cell: BoardCell
-        var selectionIndicator: SKShapeNode?
-        var isSelected = false {
-            didSet {
-                selectionIndicator?.isHidden = !isSelected
-            }
-        }
-
-        init(
-            kind: BoardItemKind,
-            cell: BoardCell
-        ) {
-            self.kind = kind
-            self.cell = cell
-            super.init()
-            text = kind.emoji
-        }
-
-        @available(*, unavailable)
-        required init?(coder aDecoder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-    }
-
     // MARK: - 보드 규칙
 
     // 가로 칸 수입니다. Hollywood Merge와 같이 7칸으로 설정했습니다.
@@ -98,20 +20,14 @@ final class MergeBoardScene: SKScene {
     // 보드의 크기와 위치를 2pt 단위에 맞춰 픽셀 경계가 흐려지지 않게 합니다.
     private let pixelUnit: CGFloat = 2
 
-    // 버터 스카이 픽셀 보드에서 공통으로 사용하는 색입니다.
-    private let outlineColor = SKColor(red: 0.07, green: 0.08, blue: 0.22, alpha: 1)
-    private let frameColor = SKColor(red: 1, green: 0.82, blue: 0.28, alpha: 1)
-    private let frameHighlightColor = SKColor(red: 1, green: 0.91, blue: 0.48, alpha: 1)
-    private let frameShadeColor = SKColor(red: 0.96, green: 0.64, blue: 0.14, alpha: 1)
-    private let shadowColor = SKColor(red: 0.20, green: 0.38, blue: 0.56, alpha: 0.58)
-    private let coralColor = SKColor(red: 1, green: 0.43, blue: 0.35, alpha: 1)
-    private let creamColor = SKColor(red: 1, green: 0.96, blue: 0.83, alpha: 1)
-    private let tileHighlightColor = SKColor(red: 1, green: 0.99, blue: 0.92, alpha: 1)
-    private let tileShadeColor = SKColor(red: 0.98, green: 0.91, blue: 0.74, alpha: 1)
-    private let studHighlightColor = SKColor(red: 1, green: 0.73, blue: 0.61, alpha: 1)
-
     // 보드의 칸과 아이템을 담는 부모 노드입니다.
     private let boardNode = SKNode()
+
+    // 픽셀 프레임과 7×9 격자를 그리는 전용 객체입니다.
+    private let boardRenderer = BoardRenderer()
+
+    // 각 칸의 점유 상태와 아이템 이동·교체를 관리하는 전용 객체입니다.
+    private lazy var boardState = BoardState(columns: columns, rows: rows)
 
     // 화면 크기에 맞춰 계산되는 실제 한 칸의 크기입니다.
     private var cellSize: CGFloat = 0
@@ -134,10 +50,6 @@ final class MergeBoardScene: SKScene {
     // 드래그를 시작한 칸입니다.
     // 손가락을 뗐을 때 빈 칸 이동·자리 교체·원래 칸 복귀를 판단하는 기준이 됩니다.
     private var originalCell: BoardCell?
-
-    // 각 행·열에 어떤 아이템이 있는지 관리하는 실제 보드 상태입니다.
-    // 아이템 노드의 화면 위치만 보고 빈 칸을 판단하지 않고, 이 딕셔너리를 기준으로 판단합니다.
-    private var itemsByCell: [BoardCell: BoardItemNode] = [:]
 
     // 아이템을 잡은 지점과 아이템 중심 사이의 거리입니다.
     // 손가락을 아이템의 가장자리에서 눌러도 아이템이 갑자기 점프하지 않게 합니다.
@@ -170,7 +82,7 @@ final class MergeBoardScene: SKScene {
     private func buildBoard() {
         // 보드와 최초 아이템을 처음 그립니다.
         boardNode.removeAllChildren()
-        itemsByCell.removeAll()
+        boardState.reset()
         selectedItem = nil
         draggedItem = nil
         activeTouch = nil
@@ -204,294 +116,15 @@ final class MergeBoardScene: SKScene {
             y: ((size.height - boardHeight) / 2).rounded()
         )
 
-        drawBoardFrame(width: boardWidth, height: boardHeight)
-        drawCells()
+        boardRenderer.drawBoard(
+            on: boardNode,
+            origin: boardOrigin,
+            cellSize: cellSize,
+            columns: columns,
+            rows: rows
+        )
         addInitialItems()
         assertBoardItemsMatchStoredCells()
-    }
-
-    private func drawBoardFrame(width: CGFloat, height: CGFloat) {
-        let boardCenter = CGPoint(
-            x: boardOrigin.x + (width / 2),
-            y: boardOrigin.y + (height / 2)
-        )
-
-        // 오른쪽 아래로 살짝 밀린 그림자가 보드 외곽의 계단 모양을 그대로 따라갑니다.
-        let shadow = makeSteppedPanel(
-            size: CGSize(width: width + 36, height: height + 36),
-            cornerCut: 10,
-            color: shadowColor
-        )
-        shadow.position = CGPoint(x: boardCenter.x + 6, y: boardCenter.y - 6)
-        shadow.zPosition = -6
-        boardNode.addChild(shadow)
-
-        // 가장 바깥의 짙은 남색 픽셀 외곽선입니다.
-        let outerOutline = makeSteppedPanel(
-            size: CGSize(width: width + 36, height: height + 36),
-            cornerCut: 10,
-            color: outlineColor
-        )
-        outerOutline.position = boardCenter
-        outerOutline.zPosition = -5
-        boardNode.addChild(outerOutline)
-
-        // 버터 프레임 아래쪽에 진한 노랑 층을 깔아 픽셀 장난감 같은 깊이를 만듭니다.
-        let frameShade = makeSteppedPanel(
-            size: CGSize(width: width + 30, height: height + 30),
-            cornerCut: 8,
-            color: frameShadeColor
-        )
-        frameShade.position = boardCenter
-        frameShade.zPosition = -4
-        boardNode.addChild(frameShade)
-
-        // 외곽선 안쪽의 넓은 버터 노랑 프레임입니다.
-        let butterFrame = makeSteppedPanel(
-            size: CGSize(width: width + 26, height: height + 26),
-            cornerCut: 8,
-            color: frameColor
-        )
-        butterFrame.position = boardCenter
-        butterFrame.zPosition = -3
-        boardNode.addChild(butterFrame)
-
-        addFrameHighlights(boardCenter: boardCenter, boardWidth: width, boardHeight: height)
-
-        // 각 타일 사이의 가는 남색 선으로 보이는 내부 바탕입니다.
-        let gridBackground = SKSpriteNode(
-            color: outlineColor,
-            size: CGSize(width: width + 2, height: height + 2)
-        )
-        gridBackground.position = boardCenter
-        gridBackground.zPosition = -1
-        boardNode.addChild(gridBackground)
-
-        addFrameStuds(boardCenter: boardCenter, boardWidth: width, boardHeight: height)
-        addCenterTabs(boardCenter: boardCenter, boardHeight: height)
-    }
-
-    private func makeSteppedPanel(
-        size: CGSize,
-        cornerCut: CGFloat,
-        color: SKColor
-    ) -> SKShapeNode {
-        let halfWidth = size.width / 2
-        let halfHeight = size.height / 2
-        let path = CGMutablePath()
-
-        // 대각선을 쓰지 않고 수평·수직선만 이어 네 모서리를 계단식으로 잘라냅니다.
-        path.move(to: CGPoint(x: -halfWidth + cornerCut, y: halfHeight))
-        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: halfHeight))
-        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: halfHeight - cornerCut))
-        path.addLine(to: CGPoint(x: halfWidth, y: halfHeight - cornerCut))
-        path.addLine(to: CGPoint(x: halfWidth, y: -halfHeight + cornerCut))
-        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: -halfHeight + cornerCut))
-        path.addLine(to: CGPoint(x: halfWidth - cornerCut, y: -halfHeight))
-        path.addLine(to: CGPoint(x: -halfWidth + cornerCut, y: -halfHeight))
-        path.addLine(to: CGPoint(x: -halfWidth + cornerCut, y: -halfHeight + cornerCut))
-        path.addLine(to: CGPoint(x: -halfWidth, y: -halfHeight + cornerCut))
-        path.addLine(to: CGPoint(x: -halfWidth, y: halfHeight - cornerCut))
-        path.addLine(to: CGPoint(x: -halfWidth + cornerCut, y: halfHeight - cornerCut))
-        path.closeSubpath()
-
-        let panel = SKShapeNode(path: path)
-        panel.fillColor = color
-        panel.strokeColor = .clear
-        panel.isAntialiased = false
-        return panel
-    }
-
-    private func addFrameStuds(
-        boardCenter: CGPoint,
-        boardWidth: CGFloat,
-        boardHeight: CGFloat
-    ) {
-        let horizontalOffset = (boardWidth / 2) + 9
-        let verticalOffset = (boardHeight / 2) + 9
-        let studPositions = [
-            CGPoint(x: boardCenter.x - horizontalOffset, y: boardCenter.y + verticalOffset),
-            CGPoint(x: boardCenter.x + horizontalOffset, y: boardCenter.y + verticalOffset),
-            CGPoint(x: boardCenter.x - horizontalOffset, y: boardCenter.y - verticalOffset),
-            CGPoint(x: boardCenter.x + horizontalOffset, y: boardCenter.y - verticalOffset)
-        ]
-
-        for position in studPositions {
-            let studOutline = SKSpriteNode(
-                color: outlineColor,
-                size: CGSize(width: 10, height: 10)
-            )
-            studOutline.position = position
-            studOutline.zPosition = -0.7
-
-            let studCenter = SKSpriteNode(
-                color: coralColor,
-                size: CGSize(width: 6, height: 6)
-            )
-            studCenter.zPosition = 0.1
-
-            let studGlint = SKSpriteNode(
-                color: studHighlightColor,
-                size: CGSize(width: 2, height: 2)
-            )
-            studGlint.position = CGPoint(x: -1, y: 1)
-            studGlint.zPosition = 0.1
-            studCenter.addChild(studGlint)
-            studOutline.addChild(studCenter)
-            boardNode.addChild(studOutline)
-        }
-    }
-
-    private func addFrameHighlights(
-        boardCenter: CGPoint,
-        boardWidth: CGFloat,
-        boardHeight: CGFloat
-    ) {
-        // 위쪽과 왼쪽의 밝은 띠는 프레임이 빛을 받는 면을 표현합니다.
-        let topHighlight = SKSpriteNode(
-            color: frameHighlightColor,
-            size: CGSize(width: boardWidth - 12, height: 3)
-        )
-        topHighlight.position = CGPoint(
-            x: boardCenter.x,
-            y: boardCenter.y + (boardHeight / 2) + 9
-        )
-        topHighlight.zPosition = -2
-        boardNode.addChild(topHighlight)
-
-        let leftHighlight = SKSpriteNode(
-            color: frameHighlightColor,
-            size: CGSize(width: 3, height: boardHeight - 12)
-        )
-        leftHighlight.position = CGPoint(
-            x: boardCenter.x - (boardWidth / 2) - 9,
-            y: boardCenter.y
-        )
-        leftHighlight.zPosition = -2
-        boardNode.addChild(leftHighlight)
-
-        // 아래쪽과 오른쪽의 주황 띠는 빛이 닿지 않는 면을 표현합니다.
-        let bottomShade = SKSpriteNode(
-            color: frameShadeColor,
-            size: CGSize(width: boardWidth - 12, height: 3)
-        )
-        bottomShade.position = CGPoint(
-            x: boardCenter.x,
-            y: boardCenter.y - (boardHeight / 2) - 9
-        )
-        bottomShade.zPosition = -2
-        boardNode.addChild(bottomShade)
-
-        let rightShade = SKSpriteNode(
-            color: frameShadeColor,
-            size: CGSize(width: 3, height: boardHeight - 12)
-        )
-        rightShade.position = CGPoint(
-            x: boardCenter.x + (boardWidth / 2) + 9,
-            y: boardCenter.y
-        )
-        rightShade.zPosition = -2
-        boardNode.addChild(rightShade)
-    }
-
-    private func addCenterTabs(boardCenter: CGPoint, boardHeight: CGFloat) {
-        // A안 레퍼런스처럼 위·아래 중앙에 프레임 밖으로 살짝 튀어나온 장식을 둡니다.
-        let verticalOffset = (boardHeight / 2) + 17
-
-        for direction in [-1.0, 1.0] {
-            let tabOutline = SKSpriteNode(
-                color: outlineColor,
-                size: CGSize(width: 24, height: 12)
-            )
-            tabOutline.position = CGPoint(
-                x: boardCenter.x,
-                y: boardCenter.y + (verticalOffset * direction)
-            )
-            tabOutline.zPosition = -0.7
-
-            let tabFrame = SKSpriteNode(
-                color: frameColor,
-                size: CGSize(width: 18, height: 8)
-            )
-            tabFrame.zPosition = 0.1
-            tabOutline.addChild(tabFrame)
-
-            let tabCenter = SKSpriteNode(
-                color: coralColor,
-                size: CGSize(width: 6, height: 6)
-            )
-            tabCenter.zPosition = 0.2
-
-            let tabGlint = SKSpriteNode(
-                color: studHighlightColor,
-                size: CGSize(width: 2, height: 2)
-            )
-            tabGlint.position = CGPoint(x: -1, y: 1)
-            tabGlint.zPosition = 0.1
-            tabCenter.addChild(tabGlint)
-            tabOutline.addChild(tabCenter)
-            boardNode.addChild(tabOutline)
-        }
-    }
-
-    private func drawCells() {
-        for row in 0..<rows {
-            for column in 0..<columns {
-                // 레퍼런스처럼 네 모서리를 2pt만큼 잘라낸 크림색 픽셀 타일입니다.
-                // 칸보다 2pt 작아서 뒤의 남색 바탕이 가는 격자선으로 보입니다.
-                let tileSize = CGSize(width: cellSize - 2, height: cellSize - 2)
-                let cellTile = makeSteppedPanel(
-                    size: tileSize,
-                    cornerCut: 2,
-                    color: creamColor
-                )
-                cellTile.position = positionForCell(column: column, row: row)
-                cellTile.zPosition = 0
-                cellTile.name = "boardCell"
-
-                // 타일 위쪽에는 밝은 1pt 선, 아래쪽에는 베이지 2pt 선을 넣어
-                // 평면 사각형이 아니라 살짝 도톰한 픽셀 타일처럼 보이게 합니다.
-                let topHighlight = SKSpriteNode(
-                    color: tileHighlightColor,
-                    size: CGSize(width: cellSize - 6, height: 1)
-                )
-                topHighlight.position = CGPoint(x: 0, y: (tileSize.height / 2) - 1.5)
-                topHighlight.zPosition = 0.1
-                cellTile.addChild(topHighlight)
-
-                let bottomShade = SKSpriteNode(
-                    color: tileShadeColor,
-                    size: CGSize(width: cellSize - 6, height: 1)
-                )
-                bottomShade.position = CGPoint(x: 0, y: -(tileSize.height / 2) + 1.5)
-                bottomShade.zPosition = 0.1
-                cellTile.addChild(bottomShade)
-
-                boardNode.addChild(cellTile)
-            }
-        }
-
-        addGridIntersections()
-    }
-
-    private func addGridIntersections() {
-        // 레퍼런스의 격자 교차점은 선보다 한 픽셀 더 굵은 작은 남색 사각형입니다.
-        // 칸의 경계가 만나는 내부 지점에만 추가하며, 행·열과 터치 판정에는 영향을 주지 않습니다.
-        for rowBoundary in 1..<rows {
-            for columnBoundary in 1..<columns {
-                let intersection = SKSpriteNode(
-                    color: outlineColor,
-                    size: CGSize(width: 3, height: 3)
-                )
-                intersection.position = CGPoint(
-                    x: boardOrigin.x + (CGFloat(columnBoundary) * cellSize),
-                    y: boardOrigin.y + (CGFloat(rowBoundary) * cellSize)
-                )
-                intersection.zPosition = 0.2
-                intersection.name = "gridIntersection"
-                boardNode.addChild(intersection)
-            }
-        }
     }
 
     // MARK: - Initial Board Items
@@ -515,30 +148,17 @@ final class MergeBoardScene: SKScene {
     ) -> BoardItemNode {
         let cell = BoardCell(column: column, row: row)
 
-        // 같은 칸에 두 노드를 추가하면 화면과 itemsByCell이 어긋납니다.
-        // 호출하는 쪽은 반드시 빈 칸을 확인하거나 기존 아이템을 제거한 뒤 추가해야 합니다.
-        precondition(itemsByCell[cell] == nil, "이미 아이템이 있는 칸에는 새 아이템을 추가할 수 없습니다.")
-
         let item = BoardItemNode(
             kind: kind,
             cell: cell
         )
 
-        item.fontSize = cellSize * 0.58
-        item.verticalAlignmentMode = .center
-        item.horizontalAlignmentMode = .center
+        item.configureAppearance(cellSize: cellSize)
         item.position = positionForCell(cell)
         item.zPosition = 1
-        item.name = "boardItem"
-
-        // 선택 상태를 눈으로 검증하기 위한 임시 표시입니다.
-        // 실제 디자인은 이후 UI 작업에서 교체합니다.
-        let selectionIndicator = makeSelectionIndicator()
-        item.addChild(selectionIndicator)
-        item.selectionIndicator = selectionIndicator
 
         boardNode.addChild(item)
-        itemsByCell[cell] = item
+        boardState.add(item, at: cell)
         return item
     }
 
@@ -695,34 +315,17 @@ final class MergeBoardScene: SKScene {
         // 생성기 종류가 무엇을 만드는지 확인합니다.
         // 밀·밀가루 같은 일반 재료를 다시 탭한 경우에는 아무것도 생성하지 않습니다.
         guard let spawnedKind = generator.kind.spawnedItemKind,
-              let emptyCell = firstEmptyCell() else {
+              let emptyCell = boardState.firstEmptyCell() else {
             return
         }
 
-        // 빈 칸을 찾은 뒤 화면 노드와 itemsByCell 상태를 동시에 추가합니다.
+        // 빈 칸을 찾은 뒤 화면 노드와 BoardState 상태를 동시에 추가합니다.
         // 생성 애니메이션은 후속 작업에서 이 지점에 연결합니다.
         addBoardItem(
             spawnedKind,
             column: emptyCell.column,
             row: emptyCell.row
         )
-    }
-
-    private func firstEmptyCell() -> BoardCell? {
-        // row 0의 왼쪽부터 오른쪽으로 확인한 뒤 다음 행으로 내려갑니다.
-        // 따라서 최초 곡물 포대가 1행 1열을 차지하면 첫 밀은 1행 2열에 생성됩니다.
-        for row in 0..<rows {
-            for column in 0..<columns {
-                let cell = BoardCell(column: column, row: row)
-
-                if itemsByCell[cell] == nil {
-                    return cell
-                }
-            }
-        }
-
-        // 63칸이 모두 차 있으면 기존 아이템을 덮어쓰지 않고 생성을 취소합니다.
-        return nil
     }
 
     // MARK: - Grid Snap
@@ -738,12 +341,10 @@ final class MergeBoardScene: SKScene {
             return draggedItem
         }
 
-        // 목표 칸이 비었다면 시작 칸을 비우고 목표 칸에 아이템을 등록합니다.
+        // 목표 칸이 비었다면 BoardState에서 아이템의 칸을 이동합니다.
         // 화면 위치와 보드 상태를 같은 시점에 갱신해야 둘이 어긋나지 않습니다.
-        guard let targetItem = itemsByCell[targetCell] else {
-            itemsByCell[startCell] = nil
-            itemsByCell[targetCell] = draggedItem
-            draggedItem.cell = targetCell
+        guard let targetItem = boardState.item(at: targetCell) else {
+            boardState.move(draggedItem, from: startCell, to: targetCell)
             draggedItem.position = positionForCell(targetCell)
             return draggedItem
         }
@@ -773,16 +374,16 @@ final class MergeBoardScene: SKScene {
         at targetCell: BoardCell,
         into nextKind: BoardItemKind
     ) -> BoardItemNode {
-        // 먼저 두 칸의 기존 점유 정보를 제거합니다.
-        // 화면 노드를 제거한 뒤 딕셔너리에 남는 유령 아이템이 없도록 함께 갱신합니다.
-        itemsByCell[startCell] = nil
-        itemsByCell[targetCell] = nil
+        // 먼저 BoardState에서 두 칸의 기존 점유 정보를 제거합니다.
+        // 화면 노드를 제거한 뒤 상태에 남는 유령 아이템이 없도록 함께 갱신합니다.
+        boardState.removeItem(at: startCell)
+        boardState.removeItem(at: targetCell)
 
         draggedItem.removeFromParent()
         targetItem.removeFromParent()
 
         // 머지 결과는 사용자가 드롭한 목표 칸에 하나만 생성합니다.
-        // addBoardItem이 새 노드를 화면과 itemsByCell에 동시에 등록합니다.
+        // addBoardItem이 새 노드를 화면과 BoardState에 동시에 등록합니다.
         return addBoardItem(
             nextKind,
             column: targetCell.column,
@@ -796,12 +397,13 @@ final class MergeBoardScene: SKScene {
         from startCell: BoardCell,
         to targetCell: BoardCell
     ) {
-        // 두 칸의 점유 상태를 교체한 뒤 두 화면 노드도 각 칸 중앙에 배치합니다.
-        itemsByCell[startCell] = targetItem
-        itemsByCell[targetCell] = draggedItem
-
-        targetItem.cell = startCell
-        draggedItem.cell = targetCell
+        // BoardState의 두 칸을 교체한 뒤 두 화면 노드도 각 칸 중앙에 배치합니다.
+        boardState.swap(
+            draggedItem,
+            at: startCell,
+            with: targetItem,
+            at: targetCell
+        )
         targetItem.position = positionForCell(startCell)
         draggedItem.position = positionForCell(targetCell)
     }
@@ -840,35 +442,34 @@ final class MergeBoardScene: SKScene {
 
     private func assertBoardItemsMatchStoredCells() {
 #if DEBUG
-        // 화면에 보이는 보드 아이템과 itemsByCell에 저장된 아이템의 개수가 같은지 확인합니다.
+        // 화면에 보이는 보드 아이템과 BoardState에 저장된 아이템의 개수가 같은지 확인합니다.
         let visibleItems = boardNode.children.compactMap { $0 as? BoardItemNode }
         assert(
-            visibleItems.count == itemsByCell.count,
-            "화면의 아이템 개수와 itemsByCell에 저장된 아이템 개수가 다릅니다."
+            visibleItems.count == boardState.itemCount,
+            "화면의 아이템 개수와 BoardState에 저장된 아이템 개수가 다릅니다."
         )
 
-        // 화면에 보이는 각 아이템이 자신의 cell 주소로 itemsByCell에도 등록되어 있는지 확인합니다.
+        // 화면에 보이는 각 아이템이 자신의 cell 주소로 BoardState에도 등록되어 있는지 확인합니다.
         for item in visibleItems {
-            guard let storedItem = itemsByCell[item.cell] else {
-                assertionFailure("화면에는 아이템이 있지만 해당 칸이 itemsByCell에 저장되어 있지 않습니다.")
+            guard let storedItem = boardState.item(at: item.cell) else {
+                assertionFailure("화면에는 아이템이 있지만 해당 칸이 BoardState에 저장되어 있지 않습니다.")
                 continue
             }
 
             assert(
                 storedItem === item,
-                "화면의 아이템과 itemsByCell에 저장된 아이템이 서로 다른 객체입니다."
+                "화면의 아이템과 BoardState에 저장된 아이템이 서로 다른 객체입니다."
             )
         }
 
-        // itemsByCell의 칸 주소, 아이템이 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
-        for (cell, item) in itemsByCell {
-            assert((0..<columns).contains(cell.column), "보드 범위를 벗어난 열에 아이템이 저장되었습니다.")
-            assert((0..<rows).contains(cell.row), "보드 범위를 벗어난 행에 아이템이 저장되었습니다.")
-            assert(item.cell == cell, "itemsByCell의 칸과 아이템이 기억하는 칸이 다릅니다.")
-            assert(item.parent === boardNode, "itemsByCell에는 아이템이 있지만 화면에는 존재하지 않습니다.")
+        // BoardState의 칸 주소, 아이템이 기억하는 cell, 실제 화면 존재 여부가 모두 같은지 확인합니다.
+        for (cell, item) in boardState.itemsByCell {
+            assert(boardState.contains(cell), "보드 범위를 벗어난 칸에 아이템이 저장되었습니다.")
+            assert(item.cell == cell, "BoardState의 칸과 아이템이 기억하는 칸이 다릅니다.")
+            assert(item.parent === boardNode, "BoardState에는 아이템이 있지만 화면에는 존재하지 않습니다.")
         }
 
-        assert(itemsByCell.count <= columns * rows, "보드의 전체 칸 수보다 많은 아이템이 저장되었습니다.")
+        assert(boardState.itemCount <= columns * rows, "보드의 전체 칸 수보다 많은 아이템이 저장되었습니다.")
 
         if let selectedItem {
             assert(selectedItem.parent === boardNode, "선택된 아이템이 화면에 존재하지 않습니다.")
@@ -877,54 +478,6 @@ final class MergeBoardScene: SKScene {
     }
 
     // MARK: - Selection
-
-    private func makeSelectionIndicator() -> SKShapeNode {
-        let path = CGMutablePath()
-
-        // 아이템 중심에서 선택 표시 꼭짓점까지의 거리입니다.
-        // 값을 키우면 네 개의 ㄱ자 표시가 아이템에서 더 멀어집니다.
-        let halfSize = cellSize * 0.36
-
-        // 각 꼭짓점에서 가로·세로로 뻗는 선의 길이입니다.
-        let cornerLength = cellSize * 0.14
-
-        // 왼쪽 위 ┌
-        path.move(to: CGPoint(x: -halfSize + cornerLength, y: halfSize))
-        path.addLine(to: CGPoint(x: -halfSize, y: halfSize))
-        path.addLine(to: CGPoint(x: -halfSize, y: halfSize - cornerLength))
-
-        // 오른쪽 위 ┐
-        path.move(to: CGPoint(x: halfSize - cornerLength, y: halfSize))
-        path.addLine(to: CGPoint(x: halfSize, y: halfSize))
-        path.addLine(to: CGPoint(x: halfSize, y: halfSize - cornerLength))
-
-        // 왼쪽 아래 └
-        path.move(to: CGPoint(x: -halfSize, y: -halfSize + cornerLength))
-        path.addLine(to: CGPoint(x: -halfSize, y: -halfSize))
-        path.addLine(to: CGPoint(x: -halfSize + cornerLength, y: -halfSize))
-
-        // 오른쪽 아래 ┘
-        path.move(to: CGPoint(x: halfSize, y: -halfSize + cornerLength))
-        path.addLine(to: CGPoint(x: halfSize, y: -halfSize))
-        path.addLine(to: CGPoint(x: halfSize - cornerLength, y: -halfSize))
-
-        let indicator = SKShapeNode(path: path)
-        indicator.strokeColor = SKColor(
-            red: 0.12,
-            green: 0.78,
-            blue: 0.88,
-            alpha: 1
-        )
-        indicator.fillColor = .clear
-        indicator.lineWidth = 4
-        indicator.lineCap = .round
-        indicator.lineJoin = .round
-        // 아이템보다 앞에 그려 선택 여부가 항상 보이도록 합니다.
-        indicator.zPosition = 1
-        indicator.isHidden = true
-        indicator.name = "selectionIndicator"
-        return indicator
-    }
 
     private func select(_ item: BoardItemNode) {
         clearSelection()
