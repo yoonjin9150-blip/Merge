@@ -9,6 +9,9 @@ enum BoardItemKind {
     case grainSack
     case wheat
     case flour
+    case dough
+    case noodle
+    case riceCake
 
     var emoji: String {
         switch self {
@@ -19,11 +22,18 @@ enum BoardItemKind {
             return "🌾"
         case .flour:
             return "🥣"
+        case .dough:
+            // 최종 픽셀 아트가 준비되기 전까지 사용하는 임시 이모지입니다.
+            return "🫓"
+        case .noodle:
+            return "🍜"
+        case .riceCake:
+            return "🍡"
         }
     }
 
     // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
-    // 밀가루 이후 단계는 전체 머지 트리를 구현할 때 추가합니다.
+    // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {
         switch self {
         case .grainSack:
@@ -31,6 +41,12 @@ enum BoardItemKind {
         case .wheat:
             return .flour
         case .flour:
+            return .dough
+        case .dough:
+            return .noodle
+        case .noodle:
+            return .riceCake
+        case .riceCake:
             return nil
         }
     }
@@ -41,7 +57,7 @@ enum BoardItemKind {
         switch self {
         case .grainSack:
             return .wheat
-        case .wheat, .flour:
+        case .wheat, .flour, .dough, .noodle, .riceCake:
             return nil
         }
     }
