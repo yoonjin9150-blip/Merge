@@ -12,6 +12,10 @@ final class BoardItemNode: SKLabelNode {
     var cell: BoardCell
     private var selectionIndicator: SKShapeNode?
 
+    // 생성기에서 목표 칸으로 이동하는 연출이 끝나기 전까지 true입니다.
+    // BoardState에서는 이미 목표 칸을 점유하지만, 화면에서는 숨겨 두고 조작하지 않습니다.
+    var isAwaitingSpawnArrival = false
+
     var isSelected = false {
         didSet {
             selectionIndicator?.isHidden = !isSelected

@@ -23,6 +23,22 @@ struct BoardStateTests {
     }
 
     @Test
+    func 도착대기중인스폰아이템도목표칸을점유한다() {
+        let boardState = BoardState(columns: 7, rows: 9)
+        let generatorCell = BoardCell(column: 0, row: 0)
+        let reservedCell = BoardCell(column: 1, row: 0)
+        let generator = BoardItemNode(kind: .grainSack, cell: generatorCell)
+        let awaitingWheat = BoardItemNode(kind: .wheat, cell: reservedCell)
+
+        awaitingWheat.isAwaitingSpawnArrival = true
+        boardState.add(generator, at: generatorCell)
+        boardState.add(awaitingWheat, at: reservedCell)
+
+        #expect(boardState.item(at: reservedCell) === awaitingWheat)
+        #expect(boardState.firstEmptyCell() == BoardCell(column: 2, row: 0))
+    }
+
+    @Test
     func 빈칸으로이동하면시작칸은비고목표칸을차지한다() {
         let boardState = BoardState(columns: 7, rows: 9)
         let startCell = BoardCell(column: 0, row: 0)
