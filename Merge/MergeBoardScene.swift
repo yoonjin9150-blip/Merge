@@ -6,6 +6,7 @@
 //
 
 import SpriteKit
+import UIKit
 
 final class MergeBoardScene: SKScene {
 
@@ -85,12 +86,17 @@ final class MergeBoardScene: SKScene {
     // BoardState는 이미 갱신된 상태이므로 짧은 연출 중 중복 조작만 방지합니다.
     private var isMergeFeedbackRunning = false
 
+    // 머지가 성공한 순간 한 번만 실행하는 부드러운 시스템 햅틱입니다.
+    // 커스텀 Core Haptics 패턴은 단계별 음계 작업과 함께 후속 이슈에서 다룹니다.
+    private let mergeHapticGenerator = UIImpactFeedbackGenerator(style: .soft)
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
         backgroundColor = .clear
         addChild(boardNode)
         buildBoard()
+        mergeHapticGenerator.prepare()
     }
 
     // MARK: - Board Drawing
@@ -453,6 +459,7 @@ final class MergeBoardScene: SKScene {
     private func playMergeAnimation(on item: BoardItemNode) {
         isMergeFeedbackRunning = true
         clearSelection()
+        playMergeHaptic()
 
         // 결과 아이템은 작게 시작해 살짝 크게 튄 뒤 원래 크기로 돌아옵니다.
         // 수치는 MergeAnimation에 모아 두어 플레이테스트 후 한곳에서 조정할 수 있습니다.
@@ -486,6 +493,12 @@ final class MergeBoardScene: SKScene {
             self.select(item)
             self.assertBoardItemsMatchStoredCells()
         }
+    }
+
+    private func playMergeHaptic() {
+        // 시뮬레이터에서는 촉각을 느낄 수 없으므로 실제 iPhone에서 확인해야 합니다.
+        mergeHapticGenerator.impactOccurred()
+        mergeHapticGenerator.prepare()
     }
 
     private func nearestCell(to position: CGPoint) -> BoardCell {
