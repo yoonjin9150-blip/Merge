@@ -9,6 +9,18 @@ import SpriteKit
 
 final class MergeBoardScene: SKScene {
 
+    private struct DropResolution {
+        let itemToSelect: BoardItemNode
+        let shouldPlayMergeFeedback: Bool
+    }
+
+    private enum MergeAnimation {
+        static let initialScale: CGFloat = 0.65
+        static let peakScale: CGFloat = 1.15
+        static let growDuration: TimeInterval = 0.12
+        static let settleDuration: TimeInterval = 0.10
+    }
+
     // MARK: - 보드 규칙
 
     // 가로 칸 수입니다. Hollywood Merge와 같이 7칸으로 설정했습니다.
@@ -69,6 +81,10 @@ final class MergeBoardScene: SKScene {
     // touchesBegan에서 선택 표시를 숨긴 뒤에도 두 번째 탭인지 판단하기 위해 필요합니다.
     private var wasSelectedAtTouchStart = false
 
+    // 머지 결과가 통통 튀는 동안 새로운 보드 입력을 막습니다.
+    // BoardState는 이미 갱신된 상태이므로 짧은 연출 중 중복 조작만 방지합니다.
+    private var isMergeFeedbackRunning = false
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -90,6 +106,7 @@ final class MergeBoardScene: SKScene {
         touchStartLocation = .zero
         didRecognizeDrag = false
         wasSelectedAtTouchStart = false
+        isMergeFeedbackRunning = false
 
         // 보드의 바깥 여백입니다. 이 숫자를 바꾸면 보드와 화면 가장자리 사이가 바뀝니다.
         // 넓어진 픽셀 프레임까지 화면 안에 들어오도록 보드 자체에는 조금 더 여백을 둡니다.
@@ -167,8 +184,11 @@ final class MergeBoardScene: SKScene {
     // 손가락을 화면에 댄 순간입니다.
     // 터치 위치에 보드 아이템이 있으면, 그 아이템을 이번 드래그의 대상으로 저장합니다.
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // 이미 한 아이템을 드래그 중이라면 추가 터치는 무시합니다.
-        guard activeTouch == nil, draggedItem == nil, let touch = touches.first else {
+        // 머지 연출 중이거나 이미 한 아이템을 드래그 중이라면 추가 터치는 무시합니다.
+        guard !isMergeFeedbackRunning,
+              activeTouch == nil,
+              draggedItem == nil,
+              let touch = touches.first else {
             return
         }
 
@@ -263,10 +283,16 @@ final class MergeBoardScene: SKScene {
         item.position = constrainedPosition(for: item, proposedPosition: finalPosition)
 
         let targetCell = nearestCell(to: item.position)
-        let itemToSelect = resolveDrop(of: item, from: startCell, to: targetCell)
+        let resolution = resolveDrop(of: item, from: startCell, to: targetCell)
         finishDragging()
-        // 손가락 드래그 상태를 먼저 종료한 뒤, 머지 결과 아이템을 선택 상태로 유지합니다.
-        select(itemToSelect)
+
+        if resolution.shouldPlayMergeFeedback {
+            playMergeAnimation(on: resolution.itemToSelect)
+        } else {
+            // 손가락 드래그 상태를 먼저 종료한 뒤, 이동·스위치 결과 아이템을 선택 상태로 유지합니다.
+            select(resolution.itemToSelect)
+        }
+
         assertBoardItemsMatchStoredCells()
     }
 
@@ -334,11 +360,14 @@ final class MergeBoardScene: SKScene {
         of draggedItem: BoardItemNode,
         from startCell: BoardCell,
         to targetCell: BoardCell
-    ) -> BoardItemNode {
+    ) -> DropResolution {
         // 시작한 칸에 다시 놓았다면 데이터는 바꾸지 않고 칸 중앙에 정확히 맞춥니다.
         guard targetCell != startCell else {
             draggedItem.position = positionForCell(startCell)
-            return draggedItem
+            return DropResolution(
+                itemToSelect: draggedItem,
+                shouldPlayMergeFeedback: false
+            )
         }
 
         // 목표 칸이 비었다면 BoardState에서 아이템의 칸을 이동합니다.
@@ -346,25 +375,36 @@ final class MergeBoardScene: SKScene {
         guard let targetItem = boardState.item(at: targetCell) else {
             boardState.move(draggedItem, from: startCell, to: targetCell)
             draggedItem.position = positionForCell(targetCell)
-            return draggedItem
+            return DropResolution(
+                itemToSelect: draggedItem,
+                shouldPlayMergeFeedback: false
+            )
         }
 
         // 같은 재료이고 다음 단계가 있다면 두 아이템을 다음 단계 하나로 머지합니다.
         // 단계별 규칙은 BoardItemKind.nextKind가 담당하므로 모든 곡물 단계가 같은 흐름을 사용합니다.
         if draggedItem.kind == targetItem.kind,
            let nextKind = draggedItem.kind.nextKind {
-            return mergeItems(
+            let mergedItem = mergeItems(
                 draggedItem,
                 with: targetItem,
                 from: startCell,
                 at: targetCell,
                 into: nextKind
             )
+
+            return DropResolution(
+                itemToSelect: mergedItem,
+                shouldPlayMergeFeedback: true
+            )
         }
 
         // 다른 종류·다른 단계이거나 다음 단계가 없는 아이템은 서로 위치를 교체합니다.
         swapItems(draggedItem, with: targetItem, from: startCell, to: targetCell)
-        return draggedItem
+        return DropResolution(
+            itemToSelect: draggedItem,
+            shouldPlayMergeFeedback: false
+        )
     }
 
     private func mergeItems(
@@ -406,6 +446,46 @@ final class MergeBoardScene: SKScene {
         )
         targetItem.position = positionForCell(startCell)
         draggedItem.position = positionForCell(targetCell)
+    }
+
+    // MARK: - Merge Feedback
+
+    private func playMergeAnimation(on item: BoardItemNode) {
+        isMergeFeedbackRunning = true
+        clearSelection()
+
+        // 결과 아이템은 작게 시작해 살짝 크게 튄 뒤 원래 크기로 돌아옵니다.
+        // 수치는 MergeAnimation에 모아 두어 플레이테스트 후 한곳에서 조정할 수 있습니다.
+        item.setScale(MergeAnimation.initialScale)
+
+        let grow = SKAction.scale(
+            to: MergeAnimation.peakScale,
+            duration: MergeAnimation.growDuration
+        )
+        grow.timingMode = .easeOut
+
+        let settle = SKAction.scale(
+            to: 1,
+            duration: MergeAnimation.settleDuration
+        )
+        settle.timingMode = .easeInEaseOut
+
+        item.run(.sequence([grow, settle])) { [weak self, weak item] in
+            guard let self else {
+                return
+            }
+
+            self.isMergeFeedbackRunning = false
+
+            guard let item, item.parent === self.boardNode else {
+                return
+            }
+
+            // 액션의 최종 크기를 보정한 뒤에만 선택 꼭짓점을 표시합니다.
+            item.setScale(1)
+            self.select(item)
+            self.assertBoardItemsMatchStoredCells()
+        }
     }
 
     private func nearestCell(to position: CGPoint) -> BoardCell {
