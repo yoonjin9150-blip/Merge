@@ -649,17 +649,20 @@ final class MergeBoardScene: SKScene {
     }
 
     private func boardItemNode(at position: CGPoint) -> BoardItemNode? {
-        // 선택 테두리는 아이템의 자식 노드이므로, 테두리를 눌러도 부모 아이템을 찾도록 위로 탐색합니다.
-        var node: SKNode? = atPoint(position)
+        // 같은 위치의 모든 노드를 확인해 위를 지나가는 스폰 연출 노드는 건너뜁니다.
+        // 선택 테두리는 아이템의 자식 노드이므로 각 노드에서 부모 방향으로도 탐색합니다.
+        for hitNode in nodes(at: position) {
+            var node: SKNode? = hitNode
 
-        while let currentNode = node {
-            if let item = currentNode as? BoardItemNode,
-               item.name == "boardItem",
-               !item.isAwaitingSpawnArrival {
-                return item
+            while let currentNode = node {
+                if let item = currentNode as? BoardItemNode,
+                   item.name == "boardItem",
+                   !item.isAwaitingSpawnArrival {
+                    return item
+                }
+
+                node = currentNode.parent
             }
-
-            node = currentNode.parent
         }
 
         return nil
