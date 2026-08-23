@@ -22,6 +22,12 @@ final class MergeBoardScene: SKScene {
         static let settleDuration: TimeInterval = 0.10
     }
 
+    private enum SpawnAnimation {
+        static let duration: TimeInterval = 0.25
+        static let effectNodeName = "spawnAnimation"
+        static let effectZPosition: CGFloat = 3
+    }
+
     // MARK: - 보드 규칙
 
     // 가로 칸 수입니다. Hollywood Merge와 같이 7칸으로 설정했습니다.
@@ -351,13 +357,61 @@ final class MergeBoardScene: SKScene {
             return
         }
 
-        // 빈 칸을 찾은 뒤 화면 노드와 BoardState 상태를 동시에 추가합니다.
-        // 생성 애니메이션은 후속 작업에서 이 지점에 연결합니다.
-        addBoardItem(
+        // 실제 아이템을 먼저 목표 칸에 등록해 연속 탭의 다음 빈 칸 탐색에서 제외합니다.
+        // 이동 연출이 끝날 때까지는 숨겨 두고 조작하지 못하게 합니다.
+        let spawnedItem = addBoardItem(
             spawnedKind,
             column: emptyCell.column,
             row: emptyCell.row
         )
+        spawnedItem.isAwaitingSpawnArrival = true
+        spawnedItem.isHidden = true
+
+        playSpawnAnimation(
+            from: generator.position,
+            to: positionForCell(emptyCell),
+            kind: spawnedKind,
+            revealing: spawnedItem
+        )
+    }
+
+    private func playSpawnAnimation(
+        from startPosition: CGPoint,
+        to targetPosition: CGPoint,
+        kind: BoardItemKind,
+        revealing spawnedItem: BoardItemNode
+    ) {
+        // BoardState에 등록하지 않는 화면 연출 전용 노드입니다.
+        // BoardItemNode가 아니므로 이동 중에 탭하거나 드래그할 수 없습니다.
+        let effectNode = SKLabelNode(text: kind.emoji)
+        effectNode.fontSize = cellSize * 0.58
+        effectNode.verticalAlignmentMode = .center
+        effectNode.horizontalAlignmentMode = .center
+        effectNode.name = SpawnAnimation.effectNodeName
+        effectNode.position = startPosition
+        effectNode.zPosition = SpawnAnimation.effectZPosition
+        boardNode.addChild(effectNode)
+
+        let move = SKAction.move(
+            to: targetPosition,
+            duration: SpawnAnimation.duration
+        )
+        move.timingMode = .easeOut
+
+        effectNode.run(move) { [weak self, weak effectNode, weak spawnedItem] in
+            effectNode?.removeFromParent()
+
+            guard let self,
+                  let spawnedItem,
+                  spawnedItem.parent === self.boardNode else {
+                return
+            }
+
+            // 이동용 노드를 제거한 뒤 예약해 둔 실제 아이템을 일반 보드 아이템으로 전환합니다.
+            spawnedItem.isAwaitingSpawnArrival = false
+            spawnedItem.isHidden = false
+            self.assertBoardItemsMatchStoredCells()
+        }
     }
 
     // MARK: - Grid Snap
@@ -381,6 +435,16 @@ final class MergeBoardScene: SKScene {
         guard let targetItem = boardState.item(at: targetCell) else {
             boardState.move(draggedItem, from: startCell, to: targetCell)
             draggedItem.position = positionForCell(targetCell)
+            return DropResolution(
+                itemToSelect: draggedItem,
+                shouldPlayMergeFeedback: false
+            )
+        }
+
+        // 화면상 이동 중인 아이템의 목표 칸은 이미 예약된 칸입니다.
+        // 도착하기 전에는 머지나 스위치를 실행하지 않고 드래그한 아이템을 원래 칸으로 돌립니다.
+        guard !targetItem.isAwaitingSpawnArrival else {
+            draggedItem.position = positionForCell(startCell)
             return DropResolution(
                 itemToSelect: draggedItem,
                 shouldPlayMergeFeedback: false
@@ -535,15 +599,16 @@ final class MergeBoardScene: SKScene {
 
     private func assertBoardItemsMatchStoredCells() {
 #if DEBUG
-        // 화면에 보이는 보드 아이템과 BoardState에 저장된 아이템의 개수가 같은지 확인합니다.
-        let visibleItems = boardNode.children.compactMap { $0 as? BoardItemNode }
+        // 화면 노드로 등록된 보드 아이템과 BoardState에 저장된 아이템의 개수가 같은지 확인합니다.
+        // 이동 연출용 SKLabelNode는 BoardItemNode가 아니므로 이 검사에서 제외됩니다.
+        let boardItems = boardNode.children.compactMap { $0 as? BoardItemNode }
         assert(
-            visibleItems.count == boardState.itemCount,
-            "화면의 아이템 개수와 BoardState에 저장된 아이템 개수가 다릅니다."
+            boardItems.count == boardState.itemCount,
+            "화면 노드의 아이템 개수와 BoardState에 저장된 아이템 개수가 다릅니다."
         )
 
-        // 화면에 보이는 각 아이템이 자신의 cell 주소로 BoardState에도 등록되어 있는지 확인합니다.
-        for item in visibleItems {
+        // 각 보드 아이템이 자신의 cell 주소로 BoardState에도 등록되어 있는지 확인합니다.
+        for item in boardItems {
             guard let storedItem = boardState.item(at: item.cell) else {
                 assertionFailure("화면에는 아이템이 있지만 해당 칸이 BoardState에 저장되어 있지 않습니다.")
                 continue
@@ -589,7 +654,8 @@ final class MergeBoardScene: SKScene {
 
         while let currentNode = node {
             if let item = currentNode as? BoardItemNode,
-               item.name == "boardItem" {
+               item.name == "boardItem",
+               !item.isAwaitingSpawnArrival {
                 return item
             }
 
