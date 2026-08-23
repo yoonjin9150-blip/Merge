@@ -350,7 +350,7 @@ final class MergeBoardScene: SKScene {
         }
 
         // 같은 재료이고 다음 단계가 있다면 두 아이템을 다음 단계 하나로 머지합니다.
-        // 이번 기술 검증에서는 밀 두 개만 밀가루로 바뀝니다.
+        // 단계별 규칙은 BoardItemKind.nextKind가 담당하므로 모든 곡물 단계가 같은 흐름을 사용합니다.
         if draggedItem.kind == targetItem.kind,
            let nextKind = draggedItem.kind.nextKind {
             return mergeItems(
