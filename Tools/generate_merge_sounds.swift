@@ -14,10 +14,10 @@ private struct Note {
 
 private enum SoundSettings {
     static let sampleRate = 44_100
-    static let duration = 0.28
-    static let maximumAmplitude = 0.72
-    static let attackDuration = 0.004
-    static let releaseDuration = 0.018
+    static let duration = 0.18
+    static let maximumAmplitude = 0.68
+    static let attackDuration = 0.002
+    static let releaseDuration = 0.012
 }
 
 private let notes = [
@@ -40,20 +40,25 @@ private func makeSamples(frequency: Double) -> [Int16] {
         let attack = min(time / SoundSettings.attackDuration, 1)
         let release = min(max(remainingTime / SoundSettings.releaseDuration, 0), 1)
 
-        let fundamental = 0.72
+        // 따뜻한 기본음과 빠르게 사라지는 비정수 배음으로 나무 마림바 몸통을 만듭니다.
+        let woodenFundamental = 0.78
             * sin(2 * .pi * frequency * time)
-            * exp(-9 * time)
-        let brightOvertone = 0.18
-            * sin(2 * .pi * frequency * 2.01 * time)
-            * exp(-16 * time)
-        let bellOvertone = 0.08
-            * sin(2 * .pi * frequency * 3.93 * time)
-            * exp(-24 * time)
-        let pixelSparkle = 0.035
-            * sin(2 * .pi * frequency * 5.07 * time)
-            * exp(-32 * time)
+            * exp(-18 * time)
+        let woodenOvertone = 0.15
+            * sin(2 * .pi * frequency * 3.95 * time)
+            * exp(-38 * time)
+        let woodenTap = 0.07
+            * sin(2 * .pi * frequency * 9.10 * time)
+            * exp(-54 * time)
+        let woodenMarimba = woodenFundamental + woodenOvertone + woodenTap
 
-        let sample = (fundamental + brightOvertone + bellOvertone + pixelSparkle)
+        // 시작 순간에만 짧게 남는 삼각파를 10% 섞어 픽셀 게임 특유의 클릭감을 더합니다.
+        let pixelPhase = 2 * .pi * frequency * 2 * time
+        let pixelTriangle = (2 / .pi) * asin(sin(pixelPhase))
+        let pixelClick = pixelTriangle * exp(-72 * time)
+        let mixedTimbre = (woodenMarimba * 0.90) + (pixelClick * 0.10)
+
+        let sample = mixedTimbre
             * attack
             * release
         rawSamples.append(sample)
