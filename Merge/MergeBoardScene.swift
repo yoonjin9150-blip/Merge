@@ -92,9 +92,8 @@ final class MergeBoardScene: SKScene {
     // BoardState는 이미 갱신된 상태이므로 짧은 연출 중 중복 조작만 방지합니다.
     private var isMergeFeedbackRunning = false
 
-    // 머지가 성공한 순간 한 번만 실행하는 부드러운 시스템 햅틱입니다.
-    // 커스텀 Core Haptics 패턴은 단계별 음계 작업과 함께 후속 이슈에서 다룹니다.
-    private let mergeHapticGenerator = UIImpactFeedbackGenerator(style: .soft)
+    // 머지 결과 단계에 맞는 음계와 soft 햅틱을 함께 재생합니다.
+    private let mergeFeedbackPlayer = MergeFeedbackPlayer()
 
     // MARK: - Scene Life Cycle
 
@@ -102,7 +101,7 @@ final class MergeBoardScene: SKScene {
         backgroundColor = .clear
         addChild(boardNode)
         buildBoard()
-        mergeHapticGenerator.prepare()
+        mergeFeedbackPlayer.prepare()
     }
 
     // MARK: - Board Drawing
@@ -299,7 +298,7 @@ final class MergeBoardScene: SKScene {
         finishDragging()
 
         if resolution.shouldPlayMergeFeedback {
-            playMergeAnimation(on: resolution.itemToSelect)
+            playMergeFeedback(on: resolution.itemToSelect)
         } else {
             // 손가락 드래그 상태를 먼저 종료한 뒤, 이동·스위치 결과 아이템을 선택 상태로 유지합니다.
             select(resolution.itemToSelect)
@@ -520,10 +519,12 @@ final class MergeBoardScene: SKScene {
 
     // MARK: - Merge Feedback
 
-    private func playMergeAnimation(on item: BoardItemNode) {
+    private func playMergeFeedback(on item: BoardItemNode) {
         isMergeFeedbackRunning = true
         clearSelection()
-        playMergeHaptic()
+
+        // 새 결과 아이템이 나타나는 팝 연출 시작점에 음계와 햅틱도 함께 실행합니다.
+        mergeFeedbackPlayer.play(for: item.kind, on: self)
 
         // 결과 아이템은 작게 시작해 살짝 크게 튄 뒤 원래 크기로 돌아옵니다.
         // 수치는 MergeAnimation에 모아 두어 플레이테스트 후 한곳에서 조정할 수 있습니다.
@@ -557,12 +558,6 @@ final class MergeBoardScene: SKScene {
             self.select(item)
             self.assertBoardItemsMatchStoredCells()
         }
-    }
-
-    private func playMergeHaptic() {
-        // 시뮬레이터에서는 촉각을 느낄 수 없으므로 실제 iPhone에서 확인해야 합니다.
-        mergeHapticGenerator.impactOccurred()
-        mergeHapticGenerator.prepare()
     }
 
     private func nearestCell(to position: CGPoint) -> BoardCell {
