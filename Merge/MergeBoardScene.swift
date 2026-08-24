@@ -95,6 +95,9 @@ final class MergeBoardScene: SKScene {
     // 머지 결과 단계에 맞는 음계와 soft 햅틱을 함께 재생합니다.
     private let mergeFeedbackPlayer = MergeFeedbackPlayer()
 
+    // 생성기 스폰 등 머지가 아닌 짧은 게임 효과음을 재생합니다.
+    private let gameSoundPlayer = GameSoundPlayer()
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -390,6 +393,10 @@ final class MergeBoardScene: SKScene {
         effectNode.position = startPosition
         effectNode.zPosition = SpawnAnimation.effectZPosition
         boardNode.addChild(effectNode)
+
+        // 이 함수는 빈 칸을 확보해 실제 스폰 아이템을 등록한 뒤에만 호출됩니다.
+        // 따라서 첫 번째 선택 탭이나 보드가 가득 찬 실패 상황에는 소리가 나지 않습니다.
+        gameSoundPlayer.play(.generatorSpawn, on: self)
 
         let move = SKAction.move(
             to: targetPosition,
