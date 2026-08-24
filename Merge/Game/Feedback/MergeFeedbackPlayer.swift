@@ -48,6 +48,7 @@ enum MergeNote: Equatable {
 final class MergeFeedbackPlayer {
 
     private let hapticGenerator = UIImpactFeedbackGenerator(style: .soft)
+    private let soundPlayer = GameSoundPlayer()
 
     func prepare() {
         // 다음 머지의 햅틱 지연을 줄이기 위해 미리 준비합니다.
@@ -64,11 +65,6 @@ final class MergeFeedbackPlayer {
             return
         }
 
-        // false이면 현재 음원이 끝날 때까지 기다리지 않아 빠른 연속 머지의 음이 겹칠 수 있습니다.
-        let soundAction = SKAction.playSoundFileNamed(
-            note.soundFileName,
-            waitForCompletion: false
-        )
-        node.run(soundAction)
+        soundPlayer.play(.merge(note), on: node)
     }
 }
