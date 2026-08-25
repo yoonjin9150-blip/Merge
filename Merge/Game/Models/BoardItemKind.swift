@@ -80,4 +80,21 @@ enum BoardItemKind: Hashable {
             return nil
         }
     }
+
+    // 탭해 다른 아이템을 만들어 내는 생성기인지 나타냅니다.
+    // 화면에서는 이 값으로 반짝임과 에너지 번개 배지를 표시합니다.
+    var isGenerator: Bool {
+        spawnedItemKind != nil
+    }
+
+    // 현재 머지 트리에서 더 높은 단계로 합칠 수 없는 최종 재료인지 나타냅니다.
+    // nextKind가 nil인 생성기까지 최고 레벨로 오인하지 않도록 재료 종류를 명시합니다.
+    var isMaximumMergeLevel: Bool {
+        switch self {
+        case .riceCake:
+            return true
+        case .grainSack, .wheat, .flour, .dough, .noodle:
+            return false
+        }
+    }
 }

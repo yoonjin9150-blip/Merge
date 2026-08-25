@@ -56,6 +56,15 @@ final class BoardItemNode: SKNode {
         let orderCheck = makeOrderCheckIndicator(cellSize: cellSize)
         addChild(orderCheck)
         orderCheckIndicator = orderCheck
+
+        if kind.isGenerator {
+            addChild(makeGeneratorEnergyIndicator(cellSize: cellSize))
+            addChild(makeGeneratorSparkleContainer(cellSize: cellSize))
+        }
+
+        if kind.isMaximumMergeLevel {
+            addChild(makeMaximumLevelIndicator(cellSize: cellSize))
+        }
     }
 
     // 보드의 실제 아이템과 생성기에서 날아가는 연출이 같은 모습으로 보이게 만드는 공통 함수입니다.
@@ -85,11 +94,12 @@ final class BoardItemNode: SKNode {
     private func makeSelectionIndicator(cellSize: CGFloat) -> SKShapeNode {
         let path = CGMutablePath()
 
-        // 아이템 중심에서 선택 표시 꼭짓점까지의 거리입니다.
-        let halfSize = cellSize * 0.36
+        // 아이템 중심에서 실제 셀 경계까지의 거리입니다.
+        // 셀의 절반 크기를 사용해 파란 선택 표시가 격자의 네 꼭짓점과 정확히 겹치게 합니다.
+        let halfSize = cellSize * 0.50
 
         // 각 꼭짓점에서 가로·세로로 뻗는 선의 길이입니다.
-        let cornerLength = cellSize * 0.14
+        let cornerLength = cellSize * 0.16
 
         // 왼쪽 위 ┌
         path.move(to: CGPoint(x: -halfSize + cornerLength, y: halfSize))
@@ -122,7 +132,8 @@ final class BoardItemNode: SKNode {
         indicator.lineWidth = 4
         indicator.lineCap = .round
         indicator.lineJoin = .round
-        indicator.zPosition = 1
+        // 역할 배지나 주문 체크와 겹쳐도 선택 상태가 가장 위에서 보이게 합니다.
+        indicator.zPosition = 3
         indicator.isHidden = true
         indicator.name = "selectionIndicator"
         return indicator
@@ -173,5 +184,219 @@ final class BoardItemNode: SKNode {
         container.isHidden = true
         container.name = "orderCheckIndicator"
         return container
+    }
+
+    private func makeGeneratorEnergyIndicator(cellSize: CGFloat) -> SKNode {
+        let container = SKNode()
+        // 왕관 배지와 비슷한 시각적 비중이 되도록 번개 전체 크기를 맞춥니다.
+        let badgeSide = cellSize * 0.36
+
+        // 픽셀 에셋을 추가하지 않고도 선명하게 보이도록 번개 실루엣을 좌표로 그립니다.
+        let boltWidth = badgeSide * 0.70
+        let boltHeight = badgeSide * 0.90
+        let boltPath = CGMutablePath()
+        boltPath.move(
+            to: CGPoint(x: boltWidth * 0.08, y: boltHeight * 0.50)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: -boltWidth * 0.50, y: -boltHeight * 0.04)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: -boltWidth * 0.10, y: -boltHeight * 0.04)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: -boltWidth * 0.24, y: -boltHeight * 0.50)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: boltWidth * 0.50, y: boltHeight * 0.08)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: boltWidth * 0.10, y: boltHeight * 0.08)
+        )
+        boltPath.closeSubpath()
+
+        let bolt = SKShapeNode(path: boltPath)
+        bolt.fillColor = SKColor(
+            red: 1,
+            green: 0.78,
+            blue: 0.10,
+            alpha: 1
+        )
+        bolt.strokeColor = SKColor(
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
+            alpha: 1
+        )
+        bolt.lineWidth = max(1.5, cellSize * 0.035)
+        bolt.lineJoin = .miter
+
+        container.addChild(bolt)
+        container.position = CGPoint(
+            x: cellSize * 0.29,
+            y: -cellSize * 0.29
+        )
+        container.zPosition = 2
+        container.name = "generatorEnergyIndicator"
+        return container
+    }
+
+    private func makeMaximumLevelIndicator(cellSize: CGFloat) -> SKNode {
+        let crownWidth = cellSize * 0.32
+        let crownHeight = cellSize * 0.23
+        let crownPath = CGMutablePath()
+
+        crownPath.move(
+            to: CGPoint(x: -crownWidth * 0.50, y: -crownHeight * 0.50)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: -crownWidth * 0.50, y: crownHeight * 0.12)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: -crownWidth * 0.38, y: crownHeight * 0.48)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: -crownWidth * 0.12, y: crownHeight * 0.14)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: 0, y: crownHeight * 0.50)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.12, y: crownHeight * 0.14)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.38, y: crownHeight * 0.48)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.50, y: crownHeight * 0.12)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.50, y: -crownHeight * 0.50)
+        )
+        crownPath.closeSubpath()
+
+        let crown = SKShapeNode(path: crownPath)
+        crown.fillColor = SKColor(
+            red: 1,
+            green: 0.78,
+            blue: 0.10,
+            alpha: 1
+        )
+        crown.strokeColor = SKColor(
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
+            alpha: 1
+        )
+        crown.lineWidth = max(1.5, cellSize * 0.03)
+        crown.position = CGPoint(
+            x: -cellSize * 0.28,
+            y: -cellSize * 0.30
+        )
+        crown.zPosition = 2
+        crown.name = "maximumLevelIndicator"
+        return crown
+    }
+
+    private func makeGeneratorSparkleContainer(cellSize: CGFloat) -> SKNode {
+        let container = SKNode()
+        container.zPosition = 1
+        container.name = "generatorSparkleContainer"
+
+        let sparkleDefinitions: [(CGPoint, CGFloat, TimeInterval)] = [
+            (
+                CGPoint(x: -cellSize * 0.27, y: cellSize * 0.27),
+                cellSize * 0.08,
+                0
+            ),
+            (
+                CGPoint(x: cellSize * 0.28, y: cellSize * 0.18),
+                cellSize * 0.07,
+                0.35
+            ),
+            (
+                CGPoint(x: cellSize * 0.10, y: cellSize * 0.32),
+                cellSize * 0.06,
+                0.70
+            )
+        ]
+
+        for (position, pixelSize, delay) in sparkleDefinitions {
+            let sparkle = makePixelSparkle(pixelSize: pixelSize)
+            sparkle.position = position
+            sparkle.alpha = 0.28
+            sparkle.setScale(0.72)
+            container.addChild(sparkle)
+
+            let appear = SKAction.group([
+                .fadeAlpha(to: 1, duration: 0.20),
+                .scale(to: 1.08, duration: 0.20)
+            ])
+            appear.timingMode = .easeOut
+
+            let disappear = SKAction.group([
+                .fadeAlpha(to: 0.28, duration: 0.32),
+                .scale(to: 0.72, duration: 0.32)
+            ])
+            disappear.timingMode = .easeIn
+
+            // 서로 다른 지연 시간을 주어 세 반짝임이 동시에 깜박이지 않게 합니다.
+            // 짧게 빛난 뒤 쉬는 시간을 두어 생성기 이미지가 과하게 번쩍이지 않게 합니다.
+            sparkle.run(
+                .repeatForever(
+                    .sequence([
+                        .wait(forDuration: delay),
+                        appear,
+                        .wait(forDuration: 0.18),
+                        disappear,
+                        .wait(forDuration: 0.72)
+                    ])
+                )
+            )
+        }
+
+        return container
+    }
+
+    private func makePixelSparkle(pixelSize: CGFloat) -> SKNode {
+        let sparkle = SKNode()
+        let sparkleColor = SKColor(
+            red: 0.12,
+            green: 0.78,
+            blue: 0.88,
+            alpha: 1
+        )
+        let shadowColor = SKColor(
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
+            alpha: 0.80
+        )
+
+        let horizontalShadow = SKSpriteNode(
+            color: shadowColor,
+            size: CGSize(width: pixelSize * 3, height: pixelSize)
+        )
+        let verticalShadow = SKSpriteNode(
+            color: shadowColor,
+            size: CGSize(width: pixelSize, height: pixelSize * 3)
+        )
+        horizontalShadow.position = CGPoint(x: 1, y: -1)
+        verticalShadow.position = CGPoint(x: 1, y: -1)
+
+        let horizontalPixel = SKSpriteNode(
+            color: sparkleColor,
+            size: CGSize(width: pixelSize * 3, height: pixelSize)
+        )
+        let verticalPixel = SKSpriteNode(
+            color: sparkleColor,
+            size: CGSize(width: pixelSize, height: pixelSize * 3)
+        )
+
+        sparkle.addChild(horizontalShadow)
+        sparkle.addChild(verticalShadow)
+        sparkle.addChild(horizontalPixel)
+        sparkle.addChild(verticalPixel)
+        return sparkle
     }
 }

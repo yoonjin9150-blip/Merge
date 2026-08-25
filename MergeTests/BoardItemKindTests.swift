@@ -37,6 +37,26 @@ struct BoardItemKindTests {
     }
 
     @Test
+    func 곡물포대만생성기로분류된다() {
+        #expect(BoardItemKind.grainSack.isGenerator)
+        #expect(!BoardItemKind.wheat.isGenerator)
+        #expect(!BoardItemKind.flour.isGenerator)
+        #expect(!BoardItemKind.dough.isGenerator)
+        #expect(!BoardItemKind.noodle.isGenerator)
+        #expect(!BoardItemKind.riceCake.isGenerator)
+    }
+
+    @Test
+    func 떡만현재머지트리의최고레벨이다() {
+        #expect(BoardItemKind.riceCake.isMaximumMergeLevel)
+        #expect(!BoardItemKind.grainSack.isMaximumMergeLevel)
+        #expect(!BoardItemKind.wheat.isMaximumMergeLevel)
+        #expect(!BoardItemKind.flour.isMaximumMergeLevel)
+        #expect(!BoardItemKind.dough.isMaximumMergeLevel)
+        #expect(!BoardItemKind.noodle.isMaximumMergeLevel)
+    }
+
+    @Test
     func 현재보드아이템은모두픽셀텍스처와연결된다() {
         let expectedTextures: [(BoardItemKind, String)] = [
             (.grainSack, "GrainSackPixel"),
