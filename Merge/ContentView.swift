@@ -5,16 +5,28 @@
 //  Created by 이윤진 on 8/16/26.
 //
 
+import Combine
 import SpriteKit
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
+    @StateObject private var energyStore = EnergyStore()
+
     // SpriteKit 게임판입니다. 화면 크기에 맞춰 장면의 크기도 바뀝니다.
-    private let boardScene: MergeBoardScene = {
+    @State private var boardScene: MergeBoardScene = {
         let scene = MergeBoardScene()
         scene.scaleMode = .resizeFill
         return scene
     }()
+
+    // 실제 회복량은 저장된 시각 차이로 계산하고, 이 타이머는 화면 표시만 매초 갱신합니다.
+    private let energyTicker = Timer.publish(
+        every: 1,
+        on: .main,
+        in: .common
+    ).autoconnect()
 
     var body: some View {
         ZStack {
@@ -22,9 +34,22 @@ struct ContentView: View {
             PixelSkyBackground()
 
             VStack(spacing: 0) {
-                // 나중에 프로필·에너지·코인·주문 칸이 들어갈 상단 영역입니다.
-                // 현재는 머지 보드 위치를 확인하기 위해 빈 여백으로 둡니다.
-                Color.clear
+                // 에너지부터 구현하고, 코인과 주문 칸은 후속 이슈에서 이 영역에 추가합니다.
+                VStack(spacing: 0) {
+                    HStack {
+                        EnergyStatusView(
+                            currentEnergy: energyStore.currentEnergy,
+                            maximumEnergy: energyStore.maximumEnergy,
+                            secondsUntilNextRecovery: energyStore.secondsUntilNextRecovery
+                        )
+
+                        Spacer()
+                    }
+                    .padding(.top, 14)
+                    .padding(.horizontal, 24)
+
+                    Spacer()
+                }
                     .frame(height: 170)
 
                 // SpriteKit 장면을 투명하게 표시해 뒤의 픽셀 하늘이 그대로 보이게 합니다.
@@ -39,6 +64,22 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
+        .onAppear {
+            // SpriteKit은 빈 칸을 확인한 뒤 이 클로저를 호출해 성공할 스폰의 에너지만 차감합니다.
+            boardScene.consumeEnergyForSpawn = { [weak energyStore] in
+                energyStore?.consumeForSuccessfulSpawn() ?? false
+            }
+            energyStore.refresh()
+        }
+        .onReceive(energyTicker) { date in
+            energyStore.refresh(at: date)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // 백그라운드나 앱 종료 중 흐른 시간을 화면에 복귀할 때 즉시 반영합니다.
+                energyStore.refresh()
+            }
+        }
     }
 }
 
