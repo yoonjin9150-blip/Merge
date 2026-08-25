@@ -317,17 +317,17 @@ final class BoardItemNode: SKNode {
         let sparkleDefinitions: [(CGPoint, CGFloat, TimeInterval)] = [
             (
                 CGPoint(x: -cellSize * 0.27, y: cellSize * 0.27),
-                cellSize * 0.055,
+                cellSize * 0.08,
                 0
             ),
             (
                 CGPoint(x: cellSize * 0.28, y: cellSize * 0.18),
-                cellSize * 0.045,
+                cellSize * 0.07,
                 0.35
             ),
             (
                 CGPoint(x: cellSize * 0.10, y: cellSize * 0.32),
-                cellSize * 0.04,
+                cellSize * 0.06,
                 0.70
             )
         ]
@@ -335,7 +335,7 @@ final class BoardItemNode: SKNode {
         for (position, pixelSize, delay) in sparkleDefinitions {
             let sparkle = makePixelSparkle(pixelSize: pixelSize)
             sparkle.position = position
-            sparkle.alpha = 0.18
+            sparkle.alpha = 0.28
             sparkle.setScale(0.72)
             container.addChild(sparkle)
 
@@ -346,7 +346,7 @@ final class BoardItemNode: SKNode {
             appear.timingMode = .easeOut
 
             let disappear = SKAction.group([
-                .fadeAlpha(to: 0.18, duration: 0.32),
+                .fadeAlpha(to: 0.28, duration: 0.32),
                 .scale(to: 0.72, duration: 0.32)
             ])
             disappear.timingMode = .easeIn
@@ -371,24 +371,41 @@ final class BoardItemNode: SKNode {
 
     private func makePixelSparkle(pixelSize: CGFloat) -> SKNode {
         let sparkle = SKNode()
-        let color = SKColor(
-            red: 1,
-            green: 0.97,
-            blue: 0.78,
+        let sparkleColor = SKColor(
+            red: 0.12,
+            green: 0.78,
+            blue: 0.88,
             alpha: 1
         )
+        let shadowColor = SKColor(
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
+            alpha: 0.80
+        )
+
+        let horizontalShadow = SKSpriteNode(
+            color: shadowColor,
+            size: CGSize(width: pixelSize * 3, height: pixelSize)
+        )
+        let verticalShadow = SKSpriteNode(
+            color: shadowColor,
+            size: CGSize(width: pixelSize, height: pixelSize * 3)
+        )
+        horizontalShadow.position = CGPoint(x: 1, y: -1)
+        verticalShadow.position = CGPoint(x: 1, y: -1)
 
         let horizontalPixel = SKSpriteNode(
-            color: color,
+            color: sparkleColor,
             size: CGSize(width: pixelSize * 3, height: pixelSize)
         )
         let verticalPixel = SKSpriteNode(
-            color: color,
+            color: sparkleColor,
             size: CGSize(width: pixelSize, height: pixelSize * 3)
         )
 
-        horizontalPixel.texture?.filteringMode = .nearest
-        verticalPixel.texture?.filteringMode = .nearest
+        sparkle.addChild(horizontalShadow)
+        sparkle.addChild(verticalShadow)
         sparkle.addChild(horizontalPixel)
         sparkle.addChild(verticalPixel)
         return sparkle
