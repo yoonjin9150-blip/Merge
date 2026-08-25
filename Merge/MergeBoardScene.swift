@@ -98,6 +98,10 @@ final class MergeBoardScene: SKScene {
     // 생성기 스폰 등 머지가 아닌 짧은 게임 효과음을 재생합니다.
     private let gameSoundPlayer = GameSoundPlayer()
 
+    // SwiftUI가 소유한 에너지 상태에 성공할 스폰의 비용 차감을 요청합니다.
+    // nil이거나 에너지가 부족해 false를 반환하면 아이템을 생성하지 않습니다.
+    var consumeEnergyForSpawn: (() -> Bool)?
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -359,6 +363,12 @@ final class MergeBoardScene: SKScene {
             return
         }
 
+        // 빈 칸을 확인한 뒤 차감하므로 보드가 가득 찬 실패 상황에는 에너지를 사용하지 않습니다.
+        // 에너지가 0이거나 SwiftUI와 연결되지 않았다면 생성도 실행하지 않습니다.
+        guard consumeEnergyForSpawn?() == true else {
+            return
+        }
+
         // 실제 아이템을 먼저 목표 칸에 등록해 연속 탭의 다음 빈 칸 탐색에서 제외합니다.
         // 이동 연출이 끝날 때까지는 숨겨 두고 조작하지 못하게 합니다.
         let spawnedItem = addBoardItem(
@@ -396,7 +406,7 @@ final class MergeBoardScene: SKScene {
         boardNode.addChild(effectNode)
 
         // 이 함수는 빈 칸을 확보해 실제 스폰 아이템을 등록한 뒤에만 호출됩니다.
-        // 따라서 첫 번째 선택 탭이나 보드가 가득 찬 실패 상황에는 소리가 나지 않습니다.
+        // 따라서 첫 번째 선택 탭, 보드가 가득 찼거나 에너지가 부족한 실패 상황에는 소리가 나지 않습니다.
         gameSoundPlayer.play(.generatorSpawn, on: self)
 
         let move = SKAction.move(
