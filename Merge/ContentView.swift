@@ -48,7 +48,11 @@ struct ContentView: View {
                     .padding(.top, 14)
                     .padding(.horizontal, 24)
 
-                    Spacer()
+                    OrderCardView(order: .flourDelivery)
+                        .padding(.top, 10)
+                        .padding(.horizontal, 24)
+
+                    Spacer(minLength: 0)
                 }
                     .frame(height: 170)
 
