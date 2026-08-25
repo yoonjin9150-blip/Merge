@@ -5,6 +5,7 @@
 //  보드 아이템 역할에 맞는 배지가 생성되는지 검증합니다.
 //
 
+import SpriteKit
 import Testing
 @testable import Merge
 
@@ -20,6 +21,19 @@ struct BoardItemNodeIndicatorTests {
         )
         #expect(
             generator.childNode(withName: "maximumLevelIndicator") == nil
+        )
+    }
+
+    @Test
+    func 생성기반짝임은반복액션으로실행된다() throws {
+        let generator = makeNode(kind: .grainSack)
+        let sparkleContainer = try #require(
+            generator.childNode(withName: "generatorSparkleContainer")
+        )
+
+        #expect(sparkleContainer.children.count == 3)
+        #expect(
+            sparkleContainer.children.allSatisfy { $0.hasActions() }
         )
     }
 
@@ -44,6 +58,9 @@ struct BoardItemNodeIndicatorTests {
         )
         #expect(
             ingredient.childNode(withName: "maximumLevelIndicator") == nil
+        )
+        #expect(
+            ingredient.childNode(withName: "generatorSparkleContainer") == nil
         )
     }
 

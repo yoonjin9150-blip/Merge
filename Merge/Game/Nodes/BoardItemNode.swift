@@ -59,6 +59,7 @@ final class BoardItemNode: SKNode {
 
         if kind.isGenerator {
             addChild(makeGeneratorEnergyIndicator(cellSize: cellSize))
+            addChild(makeGeneratorSparkleContainer(cellSize: cellSize))
         }
 
         if kind.isMaximumMergeLevel {
@@ -306,5 +307,90 @@ final class BoardItemNode: SKNode {
         crown.zPosition = 2
         crown.name = "maximumLevelIndicator"
         return crown
+    }
+
+    private func makeGeneratorSparkleContainer(cellSize: CGFloat) -> SKNode {
+        let container = SKNode()
+        container.zPosition = 1
+        container.name = "generatorSparkleContainer"
+
+        let sparkleDefinitions: [(CGPoint, CGFloat, TimeInterval)] = [
+            (
+                CGPoint(x: -cellSize * 0.27, y: cellSize * 0.27),
+                cellSize * 0.055,
+                0
+            ),
+            (
+                CGPoint(x: cellSize * 0.28, y: cellSize * 0.18),
+                cellSize * 0.045,
+                0.35
+            ),
+            (
+                CGPoint(x: cellSize * 0.10, y: cellSize * 0.32),
+                cellSize * 0.04,
+                0.70
+            )
+        ]
+
+        for (position, pixelSize, delay) in sparkleDefinitions {
+            let sparkle = makePixelSparkle(pixelSize: pixelSize)
+            sparkle.position = position
+            sparkle.alpha = 0.18
+            sparkle.setScale(0.72)
+            container.addChild(sparkle)
+
+            let appear = SKAction.group([
+                .fadeAlpha(to: 1, duration: 0.20),
+                .scale(to: 1.08, duration: 0.20)
+            ])
+            appear.timingMode = .easeOut
+
+            let disappear = SKAction.group([
+                .fadeAlpha(to: 0.18, duration: 0.32),
+                .scale(to: 0.72, duration: 0.32)
+            ])
+            disappear.timingMode = .easeIn
+
+            // 서로 다른 지연 시간을 주어 세 반짝임이 동시에 깜박이지 않게 합니다.
+            // 짧게 빛난 뒤 쉬는 시간을 두어 생성기 이미지가 과하게 번쩍이지 않게 합니다.
+            sparkle.run(
+                .repeatForever(
+                    .sequence([
+                        .wait(forDuration: delay),
+                        appear,
+                        .wait(forDuration: 0.18),
+                        disappear,
+                        .wait(forDuration: 0.72)
+                    ])
+                )
+            )
+        }
+
+        return container
+    }
+
+    private func makePixelSparkle(pixelSize: CGFloat) -> SKNode {
+        let sparkle = SKNode()
+        let color = SKColor(
+            red: 1,
+            green: 0.97,
+            blue: 0.78,
+            alpha: 1
+        )
+
+        let horizontalPixel = SKSpriteNode(
+            color: color,
+            size: CGSize(width: pixelSize * 3, height: pixelSize)
+        )
+        let verticalPixel = SKSpriteNode(
+            color: color,
+            size: CGSize(width: pixelSize, height: pixelSize * 3)
+        )
+
+        horizontalPixel.texture?.filteringMode = .nearest
+        verticalPixel.texture?.filteringMode = .nearest
+        sparkle.addChild(horizontalPixel)
+        sparkle.addChild(verticalPixel)
+        return sparkle
     }
 }
