@@ -7,7 +7,7 @@
 
 import SpriteKit
 
-final class BoardItemNode: SKLabelNode {
+final class BoardItemNode: SKNode {
     let kind: BoardItemKind
     var cell: BoardCell
     private var selectionIndicator: SKShapeNode?
@@ -63,12 +63,8 @@ final class BoardItemNode: SKLabelNode {
     }
 
     private func configureItemVisual(cellSize: CGFloat) {
-        // SKLabelNode 자체는 터치와 위치를 관리하는 컨테이너 역할만 합니다.
+        // BoardItemNode 자체는 터치와 위치를 관리하는 컨테이너 역할만 합니다.
         // 실제 그림은 자식 노드로 두어 터치 영역과 픽셀 이미지 표시를 분리합니다.
-        text = nil
-        verticalAlignmentMode = .center
-        horizontalAlignmentMode = .center
-
         let visualNode = Self.makeVisualNode(for: kind, cellSize: cellSize)
         addChild(visualNode)
     }
