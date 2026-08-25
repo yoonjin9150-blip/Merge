@@ -5,7 +5,7 @@
 //  생성기와 재료의 종류별 규칙을 정의합니다.
 //
 
-enum BoardItemKind {
+enum BoardItemKind: Hashable {
     case grainSack
     case wheat
     case flour
