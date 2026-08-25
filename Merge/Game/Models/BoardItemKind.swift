@@ -32,6 +32,44 @@ enum BoardItemKind {
         }
     }
 
+    // Assets.xcassets에 픽셀 이미지가 준비된 아이템만 에셋 이름을 반환합니다.
+    // 아직 이미지가 없는 단계는 nil이므로 기존 이모지를 계속 사용합니다.
+    var textureName: String? {
+        switch self {
+        case .grainSack:
+            return "GrainSackPixel"
+        case .wheat:
+            return "WheatPixel"
+        case .flour:
+            return "FlourPixel"
+        case .dough:
+            return "DoughPixel"
+        case .noodle:
+            return "NoodlePixel"
+        case .riceCake:
+            return "RiceCakePixel"
+        }
+    }
+
+    // 각 이미지가 한 칸 안에서 차지하는 크기입니다.
+    // 에셋마다 투명 여백과 형태가 달라 보드에서 비슷한 크기로 보이도록 따로 조정합니다.
+    var visualScale: Double {
+        switch self {
+        case .grainSack:
+            return 0.86
+        case .wheat:
+            return 0.98
+        case .flour:
+            return 0.84
+        case .dough:
+            return 0.90
+        case .noodle:
+            return 0.94
+        case .riceCake:
+            return 0.98
+        }
+    }
+
     // 같은 재료 두 개를 머지했을 때 만들어질 다음 단계입니다.
     // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {

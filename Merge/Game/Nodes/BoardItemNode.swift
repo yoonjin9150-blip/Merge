@@ -38,14 +38,50 @@ final class BoardItemNode: SKLabelNode {
     }
 
     func configureAppearance(cellSize: CGFloat) {
-        fontSize = cellSize * 0.58
-        verticalAlignmentMode = .center
-        horizontalAlignmentMode = .center
+        configureItemVisual(cellSize: cellSize)
         name = "boardItem"
 
         let indicator = makeSelectionIndicator(cellSize: cellSize)
         addChild(indicator)
         selectionIndicator = indicator
+    }
+
+    // 보드의 실제 아이템과 생성기에서 날아가는 연출이 같은 모습으로 보이게 만드는 공통 함수입니다.
+    // 픽셀 에셋이 있으면 SKSpriteNode를, 아직 없으면 임시 이모지 SKLabelNode를 반환합니다.
+    static func makeVisualNode(
+        for kind: BoardItemKind,
+        cellSize: CGFloat
+    ) -> SKNode {
+        if let textureName = kind.textureName {
+            let texture = SKTexture(imageNamed: textureName)
+
+            // 픽셀 이미지가 확대·축소될 때 경계가 흐려지지 않도록 가장 가까운 픽셀을 사용합니다.
+            texture.filteringMode = .nearest
+
+            let sprite = SKSpriteNode(texture: texture)
+            let sideLength = cellSize * CGFloat(kind.visualScale)
+            sprite.size = CGSize(width: sideLength, height: sideLength)
+            sprite.name = "itemVisual"
+            return sprite
+        }
+
+        let label = SKLabelNode(text: kind.emoji)
+        label.fontSize = cellSize * CGFloat(kind.visualScale)
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        label.name = "itemVisual"
+        return label
+    }
+
+    private func configureItemVisual(cellSize: CGFloat) {
+        // SKLabelNode 자체는 터치와 위치를 관리하는 컨테이너 역할만 합니다.
+        // 실제 그림은 자식 노드로 두어 PNG와 이모지를 단계적으로 교체할 수 있게 합니다.
+        text = nil
+        verticalAlignmentMode = .center
+        horizontalAlignmentMode = .center
+
+        let visualNode = Self.makeVisualNode(for: kind, cellSize: cellSize)
+        addChild(visualNode)
     }
 
     private func makeSelectionIndicator(cellSize: CGFloat) -> SKShapeNode {
