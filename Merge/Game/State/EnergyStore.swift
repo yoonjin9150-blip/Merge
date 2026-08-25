@@ -72,8 +72,17 @@ final class EnergyStore: ObservableObject {
     }
 
     private func publish(at date: Date) {
-        currentEnergy = state.currentEnergy
-        secondsUntilNextRecovery = state.secondsUntilNextRecovery(at: date)
+        let updatedEnergy = state.currentEnergy
+        let updatedRemainingSeconds = state.secondsUntilNextRecovery(at: date)
+
+        // 완충 상태처럼 값이 그대로인 경우에는 SwiftUI에 불필요한 화면 갱신을 보내지 않습니다.
+        if currentEnergy != updatedEnergy {
+            currentEnergy = updatedEnergy
+        }
+
+        if secondsUntilNextRecovery != updatedRemainingSeconds {
+            secondsUntilNextRecovery = updatedRemainingSeconds
+        }
     }
 
     private func save() {
