@@ -188,11 +188,12 @@ final class BoardItemNode: SKNode {
 
     private func makeGeneratorEnergyIndicator(cellSize: CGFloat) -> SKNode {
         let container = SKNode()
-        let badgeSide = cellSize * 0.32
+        // 왕관 배지와 비슷한 시각적 비중이 되도록 번개 전체 크기를 맞춥니다.
+        let badgeSide = cellSize * 0.36
 
         // 픽셀 에셋을 추가하지 않고도 선명하게 보이도록 번개 실루엣을 좌표로 그립니다.
-        let boltWidth = badgeSide * 0.52
-        let boltHeight = badgeSide * 0.72
+        let boltWidth = badgeSide * 0.70
+        let boltHeight = badgeSide * 0.90
         let boltPath = CGMutablePath()
         boltPath.move(
             to: CGPoint(x: boltWidth * 0.08, y: boltHeight * 0.50)
