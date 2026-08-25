@@ -56,6 +56,14 @@ final class BoardItemNode: SKNode {
         let orderCheck = makeOrderCheckIndicator(cellSize: cellSize)
         addChild(orderCheck)
         orderCheckIndicator = orderCheck
+
+        if kind.isGenerator {
+            addChild(makeGeneratorEnergyIndicator(cellSize: cellSize))
+        }
+
+        if kind.isMaximumMergeLevel {
+            addChild(makeMaximumLevelIndicator(cellSize: cellSize))
+        }
     }
 
     // 보드의 실제 아이템과 생성기에서 날아가는 연출이 같은 모습으로 보이게 만드는 공통 함수입니다.
@@ -122,7 +130,8 @@ final class BoardItemNode: SKNode {
         indicator.lineWidth = 4
         indicator.lineCap = .round
         indicator.lineJoin = .round
-        indicator.zPosition = 1
+        // 역할 배지나 주문 체크와 겹쳐도 선택 상태가 가장 위에서 보이게 합니다.
+        indicator.zPosition = 3
         indicator.isHidden = true
         indicator.name = "selectionIndicator"
         return indicator
@@ -173,5 +182,129 @@ final class BoardItemNode: SKNode {
         container.isHidden = true
         container.name = "orderCheckIndicator"
         return container
+    }
+
+    private func makeGeneratorEnergyIndicator(cellSize: CGFloat) -> SKNode {
+        let container = SKNode()
+        let badgeSide = cellSize * 0.29
+
+        let background = SKShapeNode(
+            rectOf: CGSize(width: badgeSide, height: badgeSide),
+            cornerRadius: cellSize * 0.045
+        )
+        background.fillColor = SKColor(
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
+            alpha: 1
+        )
+        background.strokeColor = .white
+        background.lineWidth = max(1.5, cellSize * 0.03)
+
+        // 픽셀 에셋을 추가하지 않고도 선명하게 보이도록 번개 실루엣을 좌표로 그립니다.
+        let boltWidth = badgeSide * 0.52
+        let boltHeight = badgeSide * 0.72
+        let boltPath = CGMutablePath()
+        boltPath.move(
+            to: CGPoint(x: boltWidth * 0.08, y: boltHeight * 0.50)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: -boltWidth * 0.50, y: -boltHeight * 0.04)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: -boltWidth * 0.10, y: -boltHeight * 0.04)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: -boltWidth * 0.24, y: -boltHeight * 0.50)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: boltWidth * 0.50, y: boltHeight * 0.08)
+        )
+        boltPath.addLine(
+            to: CGPoint(x: boltWidth * 0.10, y: boltHeight * 0.08)
+        )
+        boltPath.closeSubpath()
+
+        let bolt = SKShapeNode(path: boltPath)
+        bolt.fillColor = SKColor(
+            red: 1,
+            green: 0.78,
+            blue: 0.10,
+            alpha: 1
+        )
+        bolt.strokeColor = SKColor(
+            red: 1,
+            green: 0.94,
+            blue: 0.42,
+            alpha: 1
+        )
+        bolt.lineWidth = max(1, cellSize * 0.018)
+
+        container.addChild(background)
+        container.addChild(bolt)
+        container.position = CGPoint(
+            x: cellSize * 0.29,
+            y: -cellSize * 0.29
+        )
+        container.zPosition = 2
+        container.name = "generatorEnergyIndicator"
+        return container
+    }
+
+    private func makeMaximumLevelIndicator(cellSize: CGFloat) -> SKNode {
+        let crownWidth = cellSize * 0.32
+        let crownHeight = cellSize * 0.23
+        let crownPath = CGMutablePath()
+
+        crownPath.move(
+            to: CGPoint(x: -crownWidth * 0.50, y: -crownHeight * 0.50)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: -crownWidth * 0.50, y: crownHeight * 0.12)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: -crownWidth * 0.38, y: crownHeight * 0.48)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: -crownWidth * 0.12, y: crownHeight * 0.14)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: 0, y: crownHeight * 0.50)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.12, y: crownHeight * 0.14)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.38, y: crownHeight * 0.48)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.50, y: crownHeight * 0.12)
+        )
+        crownPath.addLine(
+            to: CGPoint(x: crownWidth * 0.50, y: -crownHeight * 0.50)
+        )
+        crownPath.closeSubpath()
+
+        let crown = SKShapeNode(path: crownPath)
+        crown.fillColor = SKColor(
+            red: 1,
+            green: 0.78,
+            blue: 0.10,
+            alpha: 1
+        )
+        crown.strokeColor = SKColor(
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
+            alpha: 1
+        )
+        crown.lineWidth = max(1.5, cellSize * 0.03)
+        crown.position = CGPoint(
+            x: -cellSize * 0.28,
+            y: -cellSize * 0.30
+        )
+        crown.zPosition = 2
+        crown.name = "maximumLevelIndicator"
+        return crown
     }
 }
