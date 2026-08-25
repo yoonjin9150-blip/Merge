@@ -77,4 +77,40 @@ struct GameOrderTests {
         ])
         #expect(orders.map(\.coinReward) == [3, 6, 14, 30])
     }
+
+    @Test
+    func 완료가능한주문은기존순서를유지하며왼쪽으로모인다() {
+        let noodle = GrainDeliveryOrder.noodle.makeOrder()
+        let flour = GrainDeliveryOrder.flour.makeOrder()
+        let dough = GrainDeliveryOrder.dough.makeOrder()
+        let riceCake = GrainDeliveryOrder.riceCake.makeOrder()
+
+        let displayedOrders = GameOrder.prioritizedForDisplay(
+            [noodle, flour, dough, riceCake],
+            itemCounts: [.flour: 1, .riceCake: 1],
+            completingOrderIDs: []
+        )
+
+        #expect(displayedOrders.map(\.id) == [
+            flour.id,
+            riceCake.id,
+            noodle.id,
+            dough.id
+        ])
+    }
+
+    @Test
+    func 납품처리중인주문은아이템소비후에도왼쪽그룹에남는다() {
+        let noodle = GrainDeliveryOrder.noodle.makeOrder()
+        let flour = GrainDeliveryOrder.flour.makeOrder()
+        let dough = GrainDeliveryOrder.dough.makeOrder()
+
+        let displayedOrders = GameOrder.prioritizedForDisplay(
+            [noodle, flour, dough],
+            itemCounts: [:],
+            completingOrderIDs: [flour.id]
+        )
+
+        #expect(displayedOrders.map(\.id) == [flour.id, noodle.id, dough.id])
+    }
 }

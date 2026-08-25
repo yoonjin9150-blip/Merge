@@ -13,6 +13,14 @@ struct OrderStripView: View {
     let completingOrderIDs: Set<UUID>
     let onComplete: (GameOrder, CGPoint) -> Void
 
+    private var displayedOrders: [GameOrder] {
+        GameOrder.prioritizedForDisplay(
+            orders,
+            itemCounts: itemCounts,
+            completingOrderIDs: completingOrderIDs
+        )
+    }
+
     init(
         orders: [GameOrder],
         itemCounts: [BoardItemKind: Int],
@@ -33,7 +41,7 @@ struct OrderStripView: View {
     var body: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 10) {
-                ForEach(orders) { order in
+                ForEach(displayedOrders) { order in
                     OrderCardView(
                         order: order,
                         itemCounts: itemCounts,

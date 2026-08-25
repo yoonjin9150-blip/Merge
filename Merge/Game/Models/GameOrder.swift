@@ -36,6 +36,29 @@ struct GameOrder: Identifiable, Equatable {
         Set([requestedItem.itemKind] + recipeIngredients.map(\.itemKind))
     }
 
+    // 바로 완료할 수 있는 주문을 왼쪽에 먼저 보여 주되 같은 상태끼리는 기존 순서를 유지합니다.
+    // 아이템이 이미 소비된 납품 연출 중 주문도 왼쪽 위치를 유지해 애니메이션 목표가 움직이지 않게 합니다.
+    static func prioritizedForDisplay(
+        _ orders: [GameOrder],
+        itemCounts: [BoardItemKind: Int],
+        completingOrderIDs: Set<UUID>
+    ) -> [GameOrder] {
+        orders.enumerated()
+            .sorted { first, second in
+                let firstIsPrioritized = completingOrderIDs.contains(first.element.id)
+                    || first.element.isReady(in: itemCounts)
+                let secondIsPrioritized = completingOrderIDs.contains(second.element.id)
+                    || second.element.isReady(in: itemCounts)
+
+                if firstIsPrioritized == secondIsPrioritized {
+                    return first.offset < second.offset
+                }
+
+                return firstIsPrioritized && !secondIsPrioritized
+            }
+            .map(\.element)
+    }
+
     // 튜토리얼에서 처음 제시할 주문입니다.
     static var flourDelivery: GameOrder {
         GrainDeliveryOrder.flour.makeOrder()
