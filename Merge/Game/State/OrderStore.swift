@@ -14,24 +14,29 @@ final class OrderStore: ObservableObject {
     @Published private(set) var completingOrderIDs: Set<UUID> = []
     @Published private(set) var coins: Int
 
-    private let makeRandomOrder: @MainActor () -> GameOrder
+    private let availableOrderTemplates: [GrainDeliveryOrder]
 
     init(
         initialOrders: [GameOrder]? = nil,
         initialCoins: Int = 0,
-        makeRandomOrder: @MainActor @escaping () -> GameOrder = GameOrder.randomGrainDelivery
+        availableOrderTemplates: [GrainDeliveryOrder] = GrainDeliveryOrder.allCases
     ) {
         precondition(initialCoins >= 0, "코인은 음수로 시작할 수 없습니다.")
         precondition(
             (initialOrders?.count ?? 0) <= GameOrder.maximumActiveCount,
             "활성 주문은 최대 \(GameOrder.maximumActiveCount)개입니다."
         )
+        precondition(
+            Set(initialOrders?.map(\.templateID) ?? []).count
+                == (initialOrders?.count ?? 0),
+            "같은 종류의 주문은 활성 목록에 중복될 수 없습니다."
+        )
 
         // 첫 실행은 초반 진행이 막히지 않도록 밀가루 주문 한 개를 보장하고 나머지만 랜덤으로 채웁니다.
         // 테스트나 저장 복원처럼 목록을 직접 전달한 경우에는 전달받은 주문을 그대로 사용합니다.
         activeOrders = initialOrders ?? [.flourDelivery]
         coins = initialCoins
-        self.makeRandomOrder = makeRandomOrder
+        self.availableOrderTemplates = availableOrderTemplates
 
         fillEmptySlots()
     }
@@ -64,36 +69,29 @@ final class OrderStore: ObservableObject {
         completingOrderIDs.remove(order.id)
     }
 
-    // 완료 카드가 사라진 뒤 호출하여 빈자리 한 칸만 새 랜덤 주문으로 채웁니다.
+    // 완료 카드가 사라진 뒤 호출하여 현재 목록에 없는 주문 종류 하나로 빈자리를 채웁니다.
     func replenishOneOrder() {
-        guard activeOrders.count < GameOrder.maximumActiveCount else {
+        guard activeOrders.count < GameOrder.maximumActiveCount,
+              let replacement = makeRandomAvailableOrder() else {
             return
         }
 
-        activeOrders.append(makeUniqueRandomOrder())
+        activeOrders.append(replacement)
     }
 
     private func fillEmptySlots() {
-        while activeOrders.count < GameOrder.maximumActiveCount {
-            activeOrders.append(makeUniqueRandomOrder())
+        while activeOrders.count < GameOrder.maximumActiveCount,
+              let order = makeRandomAvailableOrder() {
+            activeOrders.append(order)
         }
     }
 
-    private func makeUniqueRandomOrder() -> GameOrder {
-        var order = makeRandomOrder()
-
-        // 주입된 테스트 팩토리가 같은 UUID를 반복해도 목록 ID 충돌이 생기지 않게 방어합니다.
-        while activeOrders.contains(where: { $0.id == order.id }) {
-            order = GameOrder(
-                id: UUID(),
-                templateID: order.templateID,
-                title: order.title,
-                requestedItem: order.requestedItem,
-                recipeIngredients: order.recipeIngredients,
-                coinReward: order.coinReward
-            )
+    private func makeRandomAvailableOrder() -> GameOrder? {
+        let activeTemplateIDs = Set(activeOrders.map(\.templateID))
+        let candidates = availableOrderTemplates.filter {
+            !activeTemplateIDs.contains($0.templateID)
         }
 
-        return order
+        return candidates.randomElement()?.makeOrder()
     }
 }

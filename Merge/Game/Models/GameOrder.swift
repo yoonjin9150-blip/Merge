@@ -64,9 +64,6 @@ struct GameOrder: Identifiable, Equatable {
         GrainDeliveryOrder.flour.makeOrder()
     }
 
-    static func randomGrainDelivery() -> GameOrder {
-        GrainDeliveryOrder.allCases.randomElement()!.makeOrder()
-    }
 }
 
 // 조리 시스템 전까지 사용할 곡물 머지 트리의 랜덤 주문 풀입니다.
@@ -77,12 +74,25 @@ enum GrainDeliveryOrder: CaseIterable {
     case noodle
     case riceCake
 
+    var templateID: String {
+        switch self {
+        case .flour:
+            return "flour-delivery"
+        case .dough:
+            return "dough-delivery"
+        case .noodle:
+            return "noodle-delivery"
+        case .riceCake:
+            return "rice-cake-delivery"
+        }
+    }
+
     func makeOrder(id: UUID = UUID()) -> GameOrder {
         switch self {
         case .flour:
             return GameOrder(
                 id: id,
-                templateID: "flour-delivery",
+                templateID: templateID,
                 title: "밀가루 배달",
                 requestedItem: OrderItemRequirement(itemKind: .flour, quantity: 1),
                 recipeIngredients: [],
@@ -91,7 +101,7 @@ enum GrainDeliveryOrder: CaseIterable {
         case .dough:
             return GameOrder(
                 id: id,
-                templateID: "dough-delivery",
+                templateID: templateID,
                 title: "반죽 배달",
                 requestedItem: OrderItemRequirement(itemKind: .dough, quantity: 1),
                 recipeIngredients: [],
@@ -100,7 +110,7 @@ enum GrainDeliveryOrder: CaseIterable {
         case .noodle:
             return GameOrder(
                 id: id,
-                templateID: "noodle-delivery",
+                templateID: templateID,
                 title: "면 배달",
                 requestedItem: OrderItemRequirement(itemKind: .noodle, quantity: 1),
                 recipeIngredients: [],
@@ -109,7 +119,7 @@ enum GrainDeliveryOrder: CaseIterable {
         case .riceCake:
             return GameOrder(
                 id: id,
-                templateID: "rice-cake-delivery",
+                templateID: templateID,
                 title: "떡 배달",
                 requestedItem: OrderItemRequirement(itemKind: .riceCake, quantity: 1),
                 recipeIngredients: [],
