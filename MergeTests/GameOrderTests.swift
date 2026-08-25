@@ -5,6 +5,7 @@
 //  주문 카드 데이터와 준비 상태 규칙을 검증합니다.
 //
 
+import Foundation
 import Testing
 @testable import Merge
 
@@ -14,7 +15,7 @@ struct GameOrderTests {
     func 첫주문은밀가루한개를요구하고3코인을보상한다() {
         let order = GameOrder.flourDelivery
 
-        #expect(order.id == "flour-delivery")
+        #expect(order.templateID == "flour-delivery")
         #expect(order.title == "밀가루 배달")
         #expect(order.requestedItem.itemKind == .flour)
         #expect(order.requestedItem.quantity == 1)
@@ -34,7 +35,8 @@ struct GameOrderTests {
     @Test
     func 주문관련아이템에는완성품과레시피재료가포함된다() {
         let cookingOrder = GameOrder(
-            id: "prototype-cooking-order",
+            id: UUID(),
+            templateID: "prototype-cooking-order",
             title: "시험 요리",
             requestedItem: OrderItemRequirement(
                 itemKind: .riceCake,
@@ -61,5 +63,18 @@ struct GameOrderTests {
     @Test
     func 활성주문은최대다섯개다() {
         #expect(GameOrder.maximumActiveCount == 5)
+    }
+
+    @Test
+    func 곡물랜덤주문풀은현재네가지납품주문으로구성된다() {
+        let orders = GrainDeliveryOrder.allCases.map { $0.makeOrder() }
+
+        #expect(orders.map(\.templateID) == [
+            "flour-delivery",
+            "dough-delivery",
+            "noodle-delivery",
+            "rice-cake-delivery"
+        ])
+        #expect(orders.map(\.coinReward) == [3, 6, 14, 30])
     }
 }
