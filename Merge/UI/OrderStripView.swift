@@ -12,6 +12,21 @@ struct OrderStripView: View {
     let itemCounts: [BoardItemKind: Int]
     let onComplete: (GameOrder) -> Void
 
+    init(
+        orders: [GameOrder],
+        itemCounts: [BoardItemKind: Int],
+        onComplete: @escaping (GameOrder) -> Void
+    ) {
+        precondition(
+            orders.count <= GameOrder.maximumActiveCount,
+            "활성 주문은 최대 \(GameOrder.maximumActiveCount)개까지 표시할 수 있습니다."
+        )
+
+        self.orders = orders
+        self.itemCounts = itemCounts
+        self.onComplete = onComplete
+    }
+
     var body: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 10) {

@@ -38,6 +38,10 @@ struct OrderCardView: View {
         order.isReady(in: itemCounts)
     }
 
+    private var cardHeight: CGFloat {
+        order.recipeIngredients.isEmpty ? 110 : 142
+    }
+
     var body: some View {
         VStack(spacing: 5) {
             HStack(alignment: .top, spacing: 5) {
@@ -66,9 +70,15 @@ struct OrderCardView: View {
                         )
                 }
                 .disabled(!isReady)
+                .accessibilityLabel("\(order.title) 완료")
+                .accessibilityHint(
+                    isReady
+                        ? "두 번 탭하면 주문을 납품합니다."
+                        : "납품할 아이템이 부족합니다."
+                )
         }
         .padding(8)
-        .frame(width: 120, height: 110)
+        .frame(width: 120, height: cardHeight)
         .background {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(red: 1, green: 0.97, blue: 0.85))
@@ -88,7 +98,7 @@ struct OrderCardView: View {
                     y: 4
                 )
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(order.title)
         .accessibilityValue(
             isReady
@@ -159,7 +169,7 @@ private struct OrderItemImage: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
             Image(requirement.itemKind.textureName)
                 .resizable()
                 .interpolation(.none)
@@ -171,13 +181,24 @@ private struct OrderItemImage: View {
                 .foregroundStyle(Color(red: 0.08, green: 0.07, blue: 0.20))
                 .padding(.horizontal, 2)
                 .background(Color(red: 1, green: 0.97, blue: 0.85).opacity(0.9))
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .bottomLeading
+                )
 
             if isPrepared {
                 PixelPreparedCheck()
                     .offset(x: 3, y: 3)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .bottomTrailing
+                    )
             }
         }
         .frame(width: sideLength, height: sideLength)
+        .accessibilityHidden(true)
     }
 }
 

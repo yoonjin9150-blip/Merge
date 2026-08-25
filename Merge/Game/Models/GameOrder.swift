@@ -11,6 +11,8 @@ struct OrderItemRequirement: Equatable {
 }
 
 struct GameOrder: Identifiable {
+    static let maximumActiveCount = 5
+
     let id: String
     let title: String
     let requestedItem: OrderItemRequirement

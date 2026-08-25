@@ -18,6 +18,12 @@ struct ContentView: View {
     // 주문 목록 UI는 이후 최대 다섯 개까지 같은 구조로 표시할 수 있습니다.
     private let activeOrders: [GameOrder] = [.flourDelivery]
 
+    private var topHUDHeight: CGFloat {
+        activeOrders.contains(where: { !$0.recipeIngredients.isEmpty })
+            ? 234
+            : 202
+    }
+
     // SpriteKit 보드가 알려 주는 아이템 종류별 개수입니다.
     // 주문 카드의 체크와 완료 버튼 상태를 계산하는 데 사용합니다.
     @State private var boardItemCounts: [BoardItemKind: Int] = [:]
@@ -67,7 +73,7 @@ struct ContentView: View {
 
                     Spacer(minLength: 0)
                 }
-                    .frame(height: 202)
+                    .frame(height: topHUDHeight)
 
                 // SpriteKit 장면을 투명하게 표시해 뒤의 픽셀 하늘이 그대로 보이게 합니다.
                 SpriteView(

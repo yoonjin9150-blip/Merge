@@ -2,7 +2,7 @@
 //  GameOrderTests.swift
 //  MergeTests
 //
-//  첫 주문 카드에 표시할 데이터를 검증합니다.
+//  주문 카드 데이터와 준비 상태 규칙을 검증합니다.
 //
 
 import Testing
@@ -51,5 +51,15 @@ struct GameOrderTests {
             cookingOrder.relevantItemKinds
                 == Set([.riceCake, .flour, .dough])
         )
+        #expect(
+            !cookingOrder.isReady(
+                in: [.flour: 1, .dough: 1]
+            )
+        )
+    }
+
+    @Test
+    func 활성주문은최대다섯개다() {
+        #expect(GameOrder.maximumActiveCount == 5)
     }
 }
