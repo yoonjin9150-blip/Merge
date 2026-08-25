@@ -13,28 +13,9 @@ enum BoardItemKind {
     case noodle
     case riceCake
 
-    var emoji: String {
-        switch self {
-        case .grainSack:
-            // 곡물 포대 이미지가 준비되기 전까지 사용하는 임시 이모지입니다.
-            return "🧺"
-        case .wheat:
-            return "🌾"
-        case .flour:
-            return "🥣"
-        case .dough:
-            // 최종 픽셀 아트가 준비되기 전까지 사용하는 임시 이모지입니다.
-            return "🫓"
-        case .noodle:
-            return "🍜"
-        case .riceCake:
-            return "🍡"
-        }
-    }
-
-    // Assets.xcassets에 픽셀 이미지가 준비된 아이템만 에셋 이름을 반환합니다.
-    // 아직 이미지가 없는 단계는 nil이므로 기존 이모지를 계속 사용합니다.
-    var textureName: String? {
+    // 각 보드 아이템과 연결된 Assets.xcassets의 픽셀 이미지 이름입니다.
+    // 새 아이템을 추가할 때는 먼저 전용 픽셀 에셋을 준비한 뒤 이곳에 연결합니다.
+    var textureName: String {
         switch self {
         case .grainSack:
             return "GrainSackPixel"

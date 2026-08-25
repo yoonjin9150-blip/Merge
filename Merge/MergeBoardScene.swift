@@ -672,7 +672,7 @@ final class MergeBoardScene: SKScene {
     }
 
     private func constrainedPosition(
-        for item: SKLabelNode,
+        for item: SKNode,
         proposedPosition: CGPoint
     ) -> CGPoint {
         let boardBounds = CGRect(
@@ -682,7 +682,7 @@ final class MergeBoardScene: SKScene {
             height: cellSize * CGFloat(rows)
         )
 
-        // SKLabelNode의 실제 크기를 사용해, 이모지가 반쯤 잘려 나가지 않게 제한합니다.
+        // 아이템 노드의 실제 크기를 사용해, 픽셀 이미지가 반쯤 잘려 나가지 않게 제한합니다.
         let itemFrame = item.frame
         let leftInset = item.position.x - itemFrame.minX
         let rightInset = itemFrame.maxX - item.position.x
