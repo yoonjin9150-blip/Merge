@@ -385,10 +385,11 @@ final class MergeBoardScene: SKScene {
     ) {
         // BoardState에 등록하지 않는 화면 연출 전용 노드입니다.
         // BoardItemNode가 아니므로 이동 중에 탭하거나 드래그할 수 없습니다.
-        let effectNode = SKLabelNode(text: kind.emoji)
-        effectNode.fontSize = cellSize * 0.58
-        effectNode.verticalAlignmentMode = .center
-        effectNode.horizontalAlignmentMode = .center
+        // 실제 보드 아이템과 같은 픽셀 이미지 또는 임시 이모지를 사용합니다.
+        let effectNode = BoardItemNode.makeVisualNode(
+            for: kind,
+            cellSize: cellSize
+        )
         effectNode.name = SpawnAnimation.effectNodeName
         effectNode.position = startPosition
         effectNode.zPosition = SpawnAnimation.effectZPosition
