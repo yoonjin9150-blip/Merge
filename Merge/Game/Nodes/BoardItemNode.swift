@@ -94,11 +94,12 @@ final class BoardItemNode: SKNode {
     private func makeSelectionIndicator(cellSize: CGFloat) -> SKShapeNode {
         let path = CGMutablePath()
 
-        // 아이템 중심에서 선택 표시 꼭짓점까지의 거리입니다.
-        let halfSize = cellSize * 0.36
+        // 아이템 중심에서 실제 셀 경계까지의 거리입니다.
+        // 셀의 절반 크기를 사용해 파란 선택 표시가 격자의 네 꼭짓점과 정확히 겹치게 합니다.
+        let halfSize = cellSize * 0.50
 
         // 각 꼭짓점에서 가로·세로로 뻗는 선의 길이입니다.
-        let cornerLength = cellSize * 0.14
+        let cornerLength = cellSize * 0.16
 
         // 왼쪽 위 ┌
         path.move(to: CGPoint(x: -halfSize + cornerLength, y: halfSize))
