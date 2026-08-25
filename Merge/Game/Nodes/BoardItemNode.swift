@@ -11,6 +11,7 @@ final class BoardItemNode: SKNode {
     let kind: BoardItemKind
     var cell: BoardCell
     private var selectionIndicator: SKShapeNode?
+    private var orderCheckIndicator: SKNode?
 
     // 생성기에서 목표 칸으로 이동하는 연출이 끝나기 전까지 true입니다.
     // BoardState에서는 이미 목표 칸을 점유하지만, 화면에서는 숨겨 두고 조작하지 않습니다.
@@ -19,6 +20,14 @@ final class BoardItemNode: SKNode {
     var isSelected = false {
         didSet {
             selectionIndicator?.isHidden = !isSelected
+        }
+    }
+
+    // 현재 활성 주문의 완성품 또는 재료로 사용할 수 있는 아이템인지 표시합니다.
+    // 체크 노드는 아이템의 자식이므로 드래그하거나 스냅해도 아이템과 함께 이동합니다.
+    var showsOrderCheck = false {
+        didSet {
+            orderCheckIndicator?.isHidden = !showsOrderCheck
         }
     }
 
@@ -43,6 +52,10 @@ final class BoardItemNode: SKNode {
         let indicator = makeSelectionIndicator(cellSize: cellSize)
         addChild(indicator)
         selectionIndicator = indicator
+
+        let orderCheck = makeOrderCheckIndicator(cellSize: cellSize)
+        addChild(orderCheck)
+        orderCheckIndicator = orderCheck
     }
 
     // 보드의 실제 아이템과 생성기에서 날아가는 연출이 같은 모습으로 보이게 만드는 공통 함수입니다.
@@ -113,5 +126,52 @@ final class BoardItemNode: SKNode {
         indicator.isHidden = true
         indicator.name = "selectionIndicator"
         return indicator
+    }
+
+    private func makeOrderCheckIndicator(cellSize: CGFloat) -> SKNode {
+        let container = SKNode()
+        let badgeSide = cellSize * 0.28
+        let badgePosition = cellSize * 0.29
+
+        let background = SKShapeNode(
+            rectOf: CGSize(width: badgeSide, height: badgeSide),
+            cornerRadius: cellSize * 0.04
+        )
+        background.fillColor = SKColor(
+            red: 0.20,
+            green: 0.72,
+            blue: 0.36,
+            alpha: 1
+        )
+        background.strokeColor = .white
+        background.lineWidth = max(1.5, cellSize * 0.035)
+
+        let checkPath = CGMutablePath()
+        checkPath.move(
+            to: CGPoint(x: -badgeSide * 0.25, y: 0)
+        )
+        checkPath.addLine(
+            to: CGPoint(x: -badgeSide * 0.06, y: -badgeSide * 0.20)
+        )
+        checkPath.addLine(
+            to: CGPoint(x: badgeSide * 0.28, y: badgeSide * 0.22)
+        )
+
+        let check = SKShapeNode(path: checkPath)
+        check.strokeColor = .white
+        check.lineWidth = max(2, cellSize * 0.065)
+        check.lineCap = .square
+        check.lineJoin = .miter
+
+        container.addChild(background)
+        container.addChild(check)
+        container.position = CGPoint(
+            x: badgePosition,
+            y: -badgePosition
+        )
+        container.zPosition = 2
+        container.isHidden = true
+        container.name = "orderCheckIndicator"
+        return container
     }
 }

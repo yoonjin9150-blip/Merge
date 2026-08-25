@@ -102,6 +102,21 @@ final class MergeBoardScene: SKScene {
     // nil이거나 에너지가 부족해 false를 반환하면 아이템을 생성하지 않습니다.
     var consumeEnergyForSpawn: (() -> Bool)?
 
+    // 활성 주문의 완성품과 재료에 해당하는 아이템 종류입니다.
+    // 값이 바뀌면 현재 보드의 모든 아이템 체크 표시를 다시 계산합니다.
+    var activeOrderItemKinds: Set<BoardItemKind> = [] {
+        didSet {
+            refreshOrderCheckIndicators()
+        }
+    }
+
+    // 보드 아이템 개수가 바뀔 때 SwiftUI 주문 목록에 최신 상태를 전달합니다.
+    var onBoardItemCountsChanged: (([BoardItemKind: Int]) -> Void)? {
+        didSet {
+            publishBoardItemState()
+        }
+    }
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -159,6 +174,7 @@ final class MergeBoardScene: SKScene {
             rows: rows
         )
         addInitialItems()
+        publishBoardItemState()
         assertBoardItemsMatchStoredCells()
     }
 
@@ -427,6 +443,7 @@ final class MergeBoardScene: SKScene {
             // 이동용 노드를 제거한 뒤 예약해 둔 실제 아이템을 일반 보드 아이템으로 전환합니다.
             spawnedItem.isAwaitingSpawnArrival = false
             spawnedItem.isHidden = false
+            self.publishBoardItemState()
             self.assertBoardItemsMatchStoredCells()
         }
     }
@@ -511,11 +528,33 @@ final class MergeBoardScene: SKScene {
 
         // 머지 결과는 사용자가 드롭한 목표 칸에 하나만 생성합니다.
         // addBoardItem이 새 노드를 화면과 BoardState에 동시에 등록합니다.
-        return addBoardItem(
+        let mergedItem = addBoardItem(
             nextKind,
             column: targetCell.column,
             row: targetCell.row
         )
+        publishBoardItemState()
+        return mergedItem
+    }
+
+    // MARK: - Order Readiness
+
+    private func publishBoardItemState() {
+        var counts: [BoardItemKind: Int] = [:]
+
+        for item in boardState.itemsByCell.values
+        where !item.isAwaitingSpawnArrival && !item.isHidden {
+            counts[item.kind, default: 0] += 1
+        }
+
+        refreshOrderCheckIndicators()
+        onBoardItemCountsChanged?(counts)
+    }
+
+    private func refreshOrderCheckIndicators() {
+        for item in boardState.itemsByCell.values {
+            item.showsOrderCheck = activeOrderItemKinds.contains(item.kind)
+        }
     }
 
     private func swapItems(
