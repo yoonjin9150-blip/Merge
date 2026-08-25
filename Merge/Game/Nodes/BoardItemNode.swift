@@ -187,20 +187,7 @@ final class BoardItemNode: SKNode {
 
     private func makeGeneratorEnergyIndicator(cellSize: CGFloat) -> SKNode {
         let container = SKNode()
-        let badgeSide = cellSize * 0.29
-
-        let background = SKShapeNode(
-            rectOf: CGSize(width: badgeSide, height: badgeSide),
-            cornerRadius: cellSize * 0.045
-        )
-        background.fillColor = SKColor(
-            red: 0.08,
-            green: 0.07,
-            blue: 0.20,
-            alpha: 1
-        )
-        background.strokeColor = .white
-        background.lineWidth = max(1.5, cellSize * 0.03)
+        let badgeSide = cellSize * 0.32
 
         // 픽셀 에셋을 추가하지 않고도 선명하게 보이도록 번개 실루엣을 좌표로 그립니다.
         let boltWidth = badgeSide * 0.52
@@ -234,14 +221,14 @@ final class BoardItemNode: SKNode {
             alpha: 1
         )
         bolt.strokeColor = SKColor(
-            red: 1,
-            green: 0.94,
-            blue: 0.42,
+            red: 0.08,
+            green: 0.07,
+            blue: 0.20,
             alpha: 1
         )
-        bolt.lineWidth = max(1, cellSize * 0.018)
+        bolt.lineWidth = max(1.5, cellSize * 0.035)
+        bolt.lineJoin = .miter
 
-        container.addChild(background)
         container.addChild(bolt)
         container.position = CGPoint(
             x: cellSize * 0.29,
