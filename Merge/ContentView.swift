@@ -9,6 +9,16 @@ import Combine
 import SpriteKit
 import SwiftUI
 
+private enum OrderCompletionTiming {
+    // 보드 아이템이 주문 카드까지 날아가는 시간입니다.
+    static let deliveryDuration: TimeInterval = 0.38
+    static let deliveryDurationNanoseconds: UInt64 = 380_000_000
+
+    // 완료 카드가 사라진 뒤 새 주문이 나타나기 전까지 기다리는 시간입니다.
+    // 현재 게임 규칙은 30초이며, 그동안 빈자리에 별도 대기 표시는 보여 주지 않습니다.
+    static let replenishmentDelayNanoseconds: UInt64 = 30_000_000_000
+}
+
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
@@ -154,7 +164,9 @@ struct ContentView: View {
 
         Task { @MainActor in
             // 보드에서 주문 카드까지 날아가는 연출이 끝난 뒤 보상과 카드 제거를 확정합니다.
-            try? await Task.sleep(nanoseconds: 380_000_000)
+            try? await Task.sleep(
+                nanoseconds: OrderCompletionTiming.deliveryDurationNanoseconds
+            )
             deliveryEffects.removeAll { effectIDs.contains($0.id) }
 
             guard orderStore.finishCompletion(of: order) else {
@@ -162,7 +174,9 @@ struct ContentView: View {
             }
 
             // 완료 카드가 사라진 것을 먼저 보여 준 뒤 새 랜덤 주문으로 빈자리를 채웁니다.
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(
+                nanoseconds: OrderCompletionTiming.replenishmentDelayNanoseconds
+            )
             orderStore.replenishOneOrder()
         }
     }
@@ -200,7 +214,7 @@ private struct OrderDeliveryEffectView: View {
             .position(reachedTarget ? effect.target : effect.start)
             .allowsHitTesting(false)
             .onAppear {
-                withAnimation(.easeIn(duration: 0.38)) {
+                withAnimation(.easeIn(duration: OrderCompletionTiming.deliveryDuration)) {
                     reachedTarget = true
                 }
             }
