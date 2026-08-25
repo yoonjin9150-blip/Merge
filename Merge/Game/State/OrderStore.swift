@@ -27,7 +27,9 @@ final class OrderStore: ObservableObject {
             "활성 주문은 최대 \(GameOrder.maximumActiveCount)개입니다."
         )
 
-        activeOrders = initialOrders ?? []
+        // 첫 실행은 초반 진행이 막히지 않도록 밀가루 주문 한 개를 보장하고 나머지만 랜덤으로 채웁니다.
+        // 테스트나 저장 복원처럼 목록을 직접 전달한 경우에는 전달받은 주문을 그대로 사용합니다.
+        activeOrders = initialOrders ?? [.flourDelivery]
         coins = initialCoins
         self.makeRandomOrder = makeRandomOrder
 

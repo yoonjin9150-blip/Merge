@@ -17,6 +17,7 @@ struct OrderStoreTests {
 
         #expect(store.activeOrders.count == 5)
         #expect(Set(store.activeOrders.map(\.id)).count == 5)
+        #expect(store.activeOrders.first?.templateID == "flour-delivery")
     }
 
     @Test
