@@ -14,6 +14,20 @@ struct ContentView: View {
 
     @StateObject private var energyStore = EnergyStore()
 
+    // 튜토리얼 중에는 정해진 주문 한 개부터 시작합니다.
+    // 주문 목록 UI는 이후 최대 다섯 개까지 같은 구조로 표시할 수 있습니다.
+    private let activeOrders: [GameOrder] = [.flourDelivery]
+
+    private var topHUDHeight: CGFloat {
+        activeOrders.contains(where: { !$0.recipeIngredients.isEmpty })
+            ? 234
+            : 202
+    }
+
+    // SpriteKit 보드가 알려 주는 아이템 종류별 개수입니다.
+    // 주문 카드의 체크와 완료 버튼 상태를 계산하는 데 사용합니다.
+    @State private var boardItemCounts: [BoardItemKind: Int] = [:]
+
     // SpriteKit 게임판입니다. 화면 크기에 맞춰 장면의 크기도 바뀝니다.
     @State private var boardScene: MergeBoardScene = {
         let scene = MergeBoardScene()
@@ -48,9 +62,18 @@ struct ContentView: View {
                     .padding(.top, 14)
                     .padding(.horizontal, 24)
 
-                    Spacer()
+                    OrderStripView(
+                        orders: activeOrders,
+                        itemCounts: boardItemCounts,
+                        onComplete: { _ in
+                            // 실제 아이템 소비와 코인 지급은 다음 주문 납품 이슈에서 연결합니다.
+                        }
+                    )
+                    .padding(.top, 8)
+
+                    Spacer(minLength: 0)
                 }
-                    .frame(height: 170)
+                    .frame(height: topHUDHeight)
 
                 // SpriteKit 장면을 투명하게 표시해 뒤의 픽셀 하늘이 그대로 보이게 합니다.
                 SpriteView(
@@ -68,6 +91,14 @@ struct ContentView: View {
             // SpriteKit은 빈 칸을 확인한 뒤 이 클로저를 호출해 성공할 스폰의 에너지만 차감합니다.
             boardScene.consumeEnergyForSpawn = { [weak energyStore] in
                 energyStore?.consumeForSuccessfulSpawn() ?? false
+            }
+
+            // 주문에 필요한 아이템 종류를 SpriteKit에 알려 보드 아이템의 체크를 표시합니다.
+            boardScene.activeOrderItemKinds = Set(
+                activeOrders.flatMap(\.relevantItemKinds)
+            )
+            boardScene.onBoardItemCountsChanged = { counts in
+                boardItemCounts = counts
             }
             energyStore.refresh()
         }
