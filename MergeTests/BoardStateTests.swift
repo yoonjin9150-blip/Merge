@@ -88,4 +88,30 @@ struct BoardStateTests {
         #expect(boardState.itemCount == columns * rows)
         #expect(boardState.firstEmptyCell() == nil)
     }
+
+    @Test
+    func 같은종류아이템은위쪽행왼쪽열순서로찾는다() {
+        let boardState = BoardState(columns: 7, rows: 9)
+        let bottomRight = BoardCell(column: 5, row: 5)
+        let topRight = BoardCell(column: 4, row: 1)
+        let topLeft = BoardCell(column: 2, row: 1)
+        let differentKindCell = BoardCell(column: 0, row: 0)
+
+        let bottomItem = BoardItemNode(kind: .flour, cell: bottomRight)
+        let topRightItem = BoardItemNode(kind: .flour, cell: topRight)
+        let topLeftItem = BoardItemNode(kind: .flour, cell: topLeft)
+        let wheat = BoardItemNode(kind: .wheat, cell: differentKindCell)
+
+        boardState.add(bottomItem, at: bottomRight)
+        boardState.add(topRightItem, at: topRight)
+        boardState.add(topLeftItem, at: topLeft)
+        boardState.add(wheat, at: differentKindCell)
+
+        let flourItems = boardState.items(of: .flour)
+
+        #expect(flourItems.count == 3)
+        #expect(flourItems[0] === topLeftItem)
+        #expect(flourItems[1] === topRightItem)
+        #expect(flourItems[2] === bottomItem)
+    }
 }
