@@ -10,21 +10,25 @@ import SwiftUI
 struct OrderCardView: View {
     let order: GameOrder
     let itemCounts: [BoardItemKind: Int]
-    let onComplete: () -> Void
+    let isCompleting: Bool
+    let onComplete: (CGPoint) -> Void
 
     init(order: GameOrder) {
         self.order = order
         itemCounts = [:]
-        onComplete = {}
+        isCompleting = false
+        onComplete = { _ in }
     }
 
     init(
         order: GameOrder,
         itemCounts: [BoardItemKind: Int],
-        onComplete: @escaping () -> Void
+        isCompleting: Bool = false,
+        onComplete: @escaping (CGPoint) -> Void
     ) {
         self.order = order
         self.itemCounts = itemCounts
+        self.isCompleting = isCompleting
         self.onComplete = onComplete
     }
 
@@ -43,41 +47,14 @@ struct OrderCardView: View {
     }
 
     var body: some View {
-        VStack(spacing: 5) {
-            HStack(alignment: .top, spacing: 5) {
-                requestedItem
-
-                Spacer(minLength: 0)
-
-                reward
-            }
-
-            if !order.recipeIngredients.isEmpty {
-                recipeIngredients
-            }
-
-            Button("완료", action: onComplete)
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(isReady ? Color.white : outlineColor.opacity(0.45))
-                .frame(maxWidth: .infinity)
-                .frame(height: 24)
-                .background {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            isReady
-                                ? Color(red: 0.20, green: 0.72, blue: 0.36)
-                                : outlineColor.opacity(0.10)
-                        )
-                }
-                .disabled(!isReady)
-                .accessibilityLabel("\(order.title) 완료")
-                .accessibilityHint(
-                    isReady
-                        ? "두 번 탭하면 주문을 납품합니다."
-                        : "납품할 아이템이 부족합니다."
+        GeometryReader { geometry in
+            cardContent(
+                deliveryTarget: CGPoint(
+                    x: geometry.frame(in: .named("gameRoot")).midX,
+                    y: geometry.frame(in: .named("gameRoot")).midY
                 )
+            )
         }
-        .padding(8)
         .frame(width: 120, height: cardHeight)
         .background {
             RoundedRectangle(cornerRadius: 12)
@@ -105,6 +82,50 @@ struct OrderCardView: View {
                 ? "납품 준비 완료, 보상 \(order.coinReward)코인"
                 : "납품 아이템 부족, 보상 \(order.coinReward)코인"
         )
+    }
+
+    private func cardContent(deliveryTarget: CGPoint) -> some View {
+        VStack(spacing: 5) {
+            HStack(alignment: .top, spacing: 5) {
+                requestedItem
+
+                Spacer(minLength: 0)
+
+                reward
+            }
+
+            if !order.recipeIngredients.isEmpty {
+                recipeIngredients
+            }
+
+            Button(isCompleting ? "납품 중" : "완료") {
+                onComplete(deliveryTarget)
+            }
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundStyle(
+                    isReady && !isCompleting
+                        ? Color.white
+                        : outlineColor.opacity(0.45)
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 24)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            isReady && !isCompleting
+                                ? Color(red: 0.20, green: 0.72, blue: 0.36)
+                                : outlineColor.opacity(0.10)
+                        )
+                }
+                .disabled(!isReady || isCompleting)
+                .accessibilityLabel("\(order.title) 완료")
+                .accessibilityHint(
+                    isReady
+                        ? "두 번 탭하면 주문을 납품합니다."
+                        : "납품할 아이템이 부족합니다."
+                )
+        }
+        .padding(8)
     }
 
     private var requestedItem: some View {
@@ -217,55 +238,18 @@ private struct PixelPreparedCheck: View {
     }
 }
 
-private struct PixelCoinIcon: View {
-    private let coinColor = Color(red: 1, green: 0.78, blue: 0.10)
-    private let highlightColor = Color(red: 1, green: 0.94, blue: 0.42)
-    private let shadowColor = Color(red: 0.91, green: 0.42, blue: 0.08)
-
-    var body: some View {
-        ZStack {
-            coinPath
-                .fill(shadowColor)
-                .offset(x: 1, y: 1)
-
-            coinPath
-                .fill(coinColor)
-
-            Rectangle()
-                .fill(highlightColor)
-                .frame(width: 3, height: 6)
-                .offset(x: -3, y: -2)
-        }
-        .frame(width: 20, height: 20)
-    }
-
-    private var coinPath: Path {
-        Path { path in
-            path.move(to: CGPoint(x: 5, y: 1))
-            path.addLine(to: CGPoint(x: 15, y: 1))
-            path.addLine(to: CGPoint(x: 19, y: 5))
-            path.addLine(to: CGPoint(x: 19, y: 15))
-            path.addLine(to: CGPoint(x: 15, y: 19))
-            path.addLine(to: CGPoint(x: 5, y: 19))
-            path.addLine(to: CGPoint(x: 1, y: 15))
-            path.addLine(to: CGPoint(x: 1, y: 5))
-            path.closeSubpath()
-        }
-    }
-}
-
 #Preview {
     HStack {
         OrderCardView(
             order: .flourDelivery,
             itemCounts: [:],
-            onComplete: {}
+            onComplete: { _ in }
         )
 
         OrderCardView(
             order: .flourDelivery,
             itemCounts: [.flour: 1],
-            onComplete: {}
+            onComplete: { _ in }
         )
     }
     .padding()

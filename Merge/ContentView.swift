@@ -13,10 +13,11 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @StateObject private var energyStore = EnergyStore()
+    @StateObject private var orderStore = OrderStore()
 
-    // 튜토리얼 중에는 정해진 주문 한 개부터 시작합니다.
-    // 주문 목록 UI는 이후 최대 다섯 개까지 같은 구조로 표시할 수 있습니다.
-    private let activeOrders: [GameOrder] = [.flourDelivery]
+    private var activeOrders: [GameOrder] {
+        orderStore.activeOrders
+    }
 
     private var topHUDHeight: CGFloat {
         activeOrders.contains(where: { !$0.recipeIngredients.isEmpty })
@@ -27,6 +28,7 @@ struct ContentView: View {
     // SpriteKit 보드가 알려 주는 아이템 종류별 개수입니다.
     // 주문 카드의 체크와 완료 버튼 상태를 계산하는 데 사용합니다.
     @State private var boardItemCounts: [BoardItemKind: Int] = [:]
+    @State private var deliveryEffects: [OrderDeliveryEffect] = []
 
     // SpriteKit 게임판입니다. 화면 크기에 맞춰 장면의 크기도 바뀝니다.
     @State private var boardScene: MergeBoardScene = {
@@ -48,7 +50,7 @@ struct ContentView: View {
             PixelSkyBackground()
 
             VStack(spacing: 0) {
-                // 에너지부터 구현하고, 코인과 주문 칸은 후속 이슈에서 이 영역에 추가합니다.
+                // 에너지·코인 상태와 최대 다섯 개의 주문 목록을 표시하는 상단 HUD입니다.
                 VStack(spacing: 0) {
                     HStack {
                         EnergyStatusView(
@@ -56,6 +58,8 @@ struct ContentView: View {
                             maximumEnergy: energyStore.maximumEnergy,
                             secondsUntilNextRecovery: energyStore.secondsUntilNextRecovery
                         )
+
+                        CoinStatusView(coins: orderStore.coins)
 
                         Spacer()
                     }
@@ -65,8 +69,9 @@ struct ContentView: View {
                     OrderStripView(
                         orders: activeOrders,
                         itemCounts: boardItemCounts,
-                        onComplete: { _ in
-                            // 실제 아이템 소비와 코인 지급은 다음 주문 납품 이슈에서 연결합니다.
+                        completingOrderIDs: orderStore.completingOrderIDs,
+                        onComplete: { order, target in
+                            complete(order, toward: target)
                         }
                     )
                     .padding(.top, 8)
@@ -85,7 +90,12 @@ struct ContentView: View {
                 Color.clear
                     .frame(height: 76)
             }
+
+            ForEach(deliveryEffects) { effect in
+                OrderDeliveryEffectView(effect: effect)
+            }
         }
+        .coordinateSpace(name: "gameRoot")
         .ignoresSafeArea(edges: .bottom)
         .onAppear {
             // SpriteKit은 빈 칸을 확인한 뒤 이 클로저를 호출해 성공할 스폰의 에너지만 차감합니다.
@@ -102,6 +112,12 @@ struct ContentView: View {
             }
             energyStore.refresh()
         }
+        .onReceive(orderStore.$activeOrders) { orders in
+            // 주문 완료와 새 주문 보충 때 보드의 준비 체크 대상도 즉시 다시 계산합니다.
+            boardScene.activeOrderItemKinds = Set(
+                orders.flatMap(\.relevantItemKinds)
+            )
+        }
         .onReceive(energyTicker) { date in
             energyStore.refresh(at: date)
         }
@@ -111,6 +127,83 @@ struct ContentView: View {
                 energyStore.refresh()
             }
         }
+    }
+
+    private func complete(_ order: GameOrder, toward target: CGPoint) {
+        // 같은 완료 버튼을 연타해 중복 소비·중복 보상이 발생하지 않도록 먼저 잠급니다.
+        guard orderStore.beginCompletion(of: order) else {
+            return
+        }
+
+        // 버튼의 준비 표시와 별개로 SpriteKit의 현재 보드에서 실제 아이템을 다시 찾습니다.
+        guard let deliveredItems = boardScene.consumeItemsForOrder(order.requestedItem) else {
+            orderStore.cancelCompletion(of: order)
+            return
+        }
+
+        let newEffects = deliveredItems.map { item in
+            OrderDeliveryEffect(
+                kind: item.kind,
+                start: rootPosition(for: item.scenePosition),
+                target: target
+            )
+        }
+        deliveryEffects.append(contentsOf: newEffects)
+
+        let effectIDs = Set(newEffects.map(\.id))
+
+        Task { @MainActor in
+            // 보드에서 주문 카드까지 날아가는 연출이 끝난 뒤 보상과 카드 제거를 확정합니다.
+            try? await Task.sleep(nanoseconds: 380_000_000)
+            deliveryEffects.removeAll { effectIDs.contains($0.id) }
+
+            guard orderStore.finishCompletion(of: order) else {
+                return
+            }
+
+            // 완료 카드가 사라진 것을 먼저 보여 준 뒤 새 랜덤 주문으로 빈자리를 채웁니다.
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            orderStore.replenishOneOrder()
+        }
+    }
+
+    private func rootPosition(for scenePosition: CGPoint) -> CGPoint {
+        // SpriteKit은 왼쪽 아래가 원점이고 SwiftUI는 왼쪽 위가 원점이므로 y축을 뒤집습니다.
+        // SpriteView는 상단 HUD 바로 아래에 있으므로 그 높이도 더해 게임 전체 좌표로 변환합니다.
+        CGPoint(
+            x: scenePosition.x,
+            y: topHUDHeight + boardScene.size.height - scenePosition.y
+        )
+    }
+}
+
+private struct OrderDeliveryEffect: Identifiable {
+    let id = UUID()
+    let kind: BoardItemKind
+    let start: CGPoint
+    let target: CGPoint
+}
+
+private struct OrderDeliveryEffectView: View {
+    let effect: OrderDeliveryEffect
+
+    @State private var reachedTarget = false
+
+    var body: some View {
+        Image(effect.kind.textureName)
+            .resizable()
+            .interpolation(.none)
+            .scaledToFit()
+            .frame(width: 44, height: 44)
+            .scaleEffect(reachedTarget ? 0.35 : 1)
+            .opacity(reachedTarget ? 0.2 : 1)
+            .position(reachedTarget ? effect.target : effect.start)
+            .allowsHitTesting(false)
+            .onAppear {
+                withAnimation(.easeIn(duration: 0.38)) {
+                    reachedTarget = true
+                }
+            }
     }
 }
 

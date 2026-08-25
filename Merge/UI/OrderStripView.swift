@@ -10,12 +10,14 @@ import SwiftUI
 struct OrderStripView: View {
     let orders: [GameOrder]
     let itemCounts: [BoardItemKind: Int]
-    let onComplete: (GameOrder) -> Void
+    let completingOrderIDs: Set<UUID>
+    let onComplete: (GameOrder, CGPoint) -> Void
 
     init(
         orders: [GameOrder],
         itemCounts: [BoardItemKind: Int],
-        onComplete: @escaping (GameOrder) -> Void
+        completingOrderIDs: Set<UUID> = [],
+        onComplete: @escaping (GameOrder, CGPoint) -> Void
     ) {
         precondition(
             orders.count <= GameOrder.maximumActiveCount,
@@ -24,6 +26,7 @@ struct OrderStripView: View {
 
         self.orders = orders
         self.itemCounts = itemCounts
+        self.completingOrderIDs = completingOrderIDs
         self.onComplete = onComplete
     }
 
@@ -34,8 +37,9 @@ struct OrderStripView: View {
                     OrderCardView(
                         order: order,
                         itemCounts: itemCounts,
-                        onComplete: {
-                            onComplete(order)
+                        isCompleting: completingOrderIDs.contains(order.id),
+                        onComplete: { target in
+                            onComplete(order, target)
                         }
                     )
                 }
@@ -51,7 +55,7 @@ struct OrderStripView: View {
     OrderStripView(
         orders: [.flourDelivery, .flourDelivery, .flourDelivery],
         itemCounts: [.flour: 1],
-        onComplete: { _ in }
+        onComplete: { _, _ in }
     )
     .background(Color(red: 0.68, green: 0.86, blue: 0.98))
 }
