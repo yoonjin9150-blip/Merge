@@ -22,6 +22,19 @@ struct OrderStoreTests {
     }
 
     @Test
+    func 냄비구매후수제비주문을해금하면다섯번째고유주문이생긴다() {
+        let store = OrderStore()
+
+        #expect(!store.activeOrders.contains(where: { $0.templateID == "sujebi-order" }))
+        #expect(store.unlock(.sujebi))
+        #expect(store.activeOrders.count == 5)
+        #expect(store.activeOrders.contains(where: { $0.templateID == "sujebi-order" }))
+        #expect(Set(store.activeOrders.map(\.templateID)).count == 5)
+        #expect(!store.unlock(.sujebi))
+        #expect(store.activeOrders.count == 5)
+    }
+
+    @Test
     func 실제완료가확정되면주문을제거하고코인을지급한다() {
         let defaults = makeDefaults()
         let order = GrainDeliveryOrder.noodle.makeOrder()

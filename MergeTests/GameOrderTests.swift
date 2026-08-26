@@ -79,6 +79,21 @@ struct GameOrderTests {
     }
 
     @Test
+    func 수제비주문은반죽과냄비를안내하고구코인을보상한다() {
+        let order = GameOrderTemplate.sujebi.makeOrder()
+
+        #expect(order.templateID == "sujebi-order")
+        #expect(order.requestedItem == OrderItemRequirement(itemKind: .sujebi, quantity: 1))
+        #expect(order.recipeIngredients == [
+            OrderItemRequirement(itemKind: .dough, quantity: 1)
+        ])
+        #expect(order.requiredToolKind == .cookingPot)
+        #expect(order.coinReward == 9)
+        #expect(order.relevantItemKinds == Set([.sujebi, .dough]))
+        #expect(!order.relevantItemKinds.contains(.cookingPot))
+    }
+
+    @Test
     func 완료가능한주문은기존순서를유지하며왼쪽으로모인다() {
         let noodle = GrainDeliveryOrder.noodle.makeOrder()
         let flour = GrainDeliveryOrder.flour.makeOrder()

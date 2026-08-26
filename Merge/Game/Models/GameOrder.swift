@@ -22,7 +22,27 @@ struct GameOrder: Identifiable, Equatable {
     let title: String
     let requestedItem: OrderItemRequirement
     let recipeIngredients: [OrderItemRequirement]
+    // 조리에 필요하지만 주문 완료 시 소비하지 않는 영구 조리도구입니다.
+    let requiredToolKind: BoardItemKind?
     let coinReward: Int
+
+    init(
+        id: UUID,
+        templateID: String,
+        title: String,
+        requestedItem: OrderItemRequirement,
+        recipeIngredients: [OrderItemRequirement],
+        requiredToolKind: BoardItemKind? = nil,
+        coinReward: Int
+    ) {
+        self.id = id
+        self.templateID = templateID
+        self.title = title
+        self.requestedItem = requestedItem
+        self.recipeIngredients = recipeIngredients
+        self.requiredToolKind = requiredToolKind
+        self.coinReward = coinReward
+    }
 
     // 보드에 실제 납품 아이템이 충분히 있을 때만 완료할 수 있습니다.
     // 레시피 재료가 모두 있어도 완성 요리가 없다면 완료 상태가 되지 않습니다.
@@ -68,7 +88,7 @@ struct GameOrder: Identifiable, Equatable {
 
 // 조리 시스템 전까지 사용할 곡물 머지 트리의 랜덤 주문 풀입니다.
 // 주문 종류와 보상은 한곳에서 관리해 이후 해금 단계나 가중치를 붙이기 쉽게 둡니다.
-enum GrainDeliveryOrder: CaseIterable {
+enum GrainDeliveryOrder: CaseIterable, Hashable {
     case flour
     case dough
     case noodle
@@ -117,5 +137,44 @@ enum GrainDeliveryOrder: CaseIterable {
             recipeIngredients: [],
             coinReward: coinReward
         )
+    }
+}
+
+// 게임 진행에 따라 해금할 수 있는 전체 주문 종류입니다.
+// 곡물 납품 주문과 완성 음식 주문을 같은 풀에서 중복 없이 관리합니다.
+enum GameOrderTemplate: Hashable {
+    case grainDelivery(GrainDeliveryOrder)
+    case sujebi
+
+    static var initiallyUnlocked: [GameOrderTemplate] {
+        GrainDeliveryOrder.allCases.map(GameOrderTemplate.grainDelivery)
+    }
+
+    var templateID: String {
+        switch self {
+        case let .grainDelivery(order):
+            return order.templateID
+        case .sujebi:
+            return "sujebi-order"
+        }
+    }
+
+    func makeOrder(id: UUID = UUID()) -> GameOrder {
+        switch self {
+        case let .grainDelivery(order):
+            return order.makeOrder(id: id)
+        case .sujebi:
+            return GameOrder(
+                id: id,
+                templateID: templateID,
+                title: "수제비",
+                requestedItem: OrderItemRequirement(itemKind: .sujebi, quantity: 1),
+                recipeIngredients: [
+                    OrderItemRequirement(itemKind: .dough, quantity: 1)
+                ],
+                requiredToolKind: .cookingPot,
+                coinReward: 9
+            )
+        }
     }
 }

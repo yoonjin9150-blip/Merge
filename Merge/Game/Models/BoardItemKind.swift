@@ -9,6 +9,7 @@ enum BoardItemRole {
     case generator
     case ingredient
     case cookingTool
+    case dish
 }
 
 enum BoardItemKind: Hashable {
@@ -19,6 +20,7 @@ enum BoardItemKind: Hashable {
     case dough
     case noodle
     case riceCake
+    case sujebi
 
     // 각 보드 아이템과 연결된 Assets.xcassets의 픽셀 이미지 이름입니다.
     // 새 아이템을 추가할 때는 먼저 전용 픽셀 에셋을 준비한 뒤 이곳에 연결합니다.
@@ -38,6 +40,8 @@ enum BoardItemKind: Hashable {
             return "NoodlePixel"
         case .riceCake:
             return "RiceCakePixel"
+        case .sujebi:
+            return "SujebiPixel"
         }
     }
 
@@ -59,6 +63,8 @@ enum BoardItemKind: Hashable {
             return 0.94
         case .riceCake:
             return 0.98
+        case .sujebi:
+            return 0.94
         }
     }
 
@@ -66,7 +72,7 @@ enum BoardItemKind: Hashable {
     // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {
         switch self {
-        case .grainSack, .cookingPot:
+        case .grainSack, .cookingPot, .sujebi:
             return nil
         case .wheat:
             return .flour
@@ -87,7 +93,7 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return .wheat
-        case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake:
+        case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake, .sujebi:
             return nil
         }
     }
@@ -100,6 +106,8 @@ enum BoardItemKind: Hashable {
             return .generator
         case .cookingPot:
             return .cookingTool
+        case .sujebi:
+            return .dish
         case .wheat, .flour, .dough, .noodle, .riceCake:
             return .ingredient
         }
@@ -115,13 +123,18 @@ enum BoardItemKind: Hashable {
         role == .cookingTool
     }
 
+    // 조리를 통해 만들어져 주문에 납품할 수 있지만 서로 머지하지 않는 완성 음식입니다.
+    var isDish: Bool {
+        role == .dish
+    }
+
     // 현재 머지 트리에서 더 높은 단계로 합칠 수 없는 최종 재료인지 나타냅니다.
     // nextKind가 nil인 생성기까지 최고 레벨로 오인하지 않도록 재료 종류를 명시합니다.
     var isMaximumMergeLevel: Bool {
         switch self {
         case .riceCake:
             return true
-        case .grainSack, .cookingPot, .wheat, .flour, .dough, .noodle:
+        case .grainSack, .cookingPot, .wheat, .flour, .dough, .noodle, .sujebi:
             return false
         }
     }
@@ -130,7 +143,7 @@ enum BoardItemKind: Hashable {
     // 2단계부터 1, 3, 7, 15로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
     var requiredMergeCount: Int? {
         switch self {
-        case .grainSack, .cookingPot:
+        case .grainSack, .cookingPot, .sujebi:
             return nil
         case .wheat:
             return 0

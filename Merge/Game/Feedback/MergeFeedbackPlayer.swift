@@ -38,7 +38,7 @@ enum MergeNote: Equatable {
             return .miNote
         case .riceCake:
             return .faNote
-        case .grainSack, .cookingPot, .wheat:
+        case .grainSack, .cookingPot, .wheat, .sujebi:
             return nil
         }
     }
