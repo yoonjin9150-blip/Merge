@@ -30,6 +30,21 @@ final class BoardState {
         itemsByCell[cell]
     }
 
+    // 같은 종류가 여러 개라면 화면 위쪽 행부터, 같은 행에서는 왼쪽 열부터 반환합니다.
+    // 주문 납품이 언제나 같은 기준으로 아이템을 선택하도록 딕셔너리 순서에 의존하지 않습니다.
+    func items(of kind: BoardItemKind) -> [BoardItemNode] {
+        itemsByCell
+            .filter { _, item in item.kind == kind }
+            .sorted { first, second in
+                if first.key.row == second.key.row {
+                    return first.key.column < second.key.column
+                }
+
+                return first.key.row < second.key.row
+            }
+            .map(\.value)
+    }
+
     func add(_ item: BoardItemNode, at cell: BoardCell) {
         precondition(contains(cell), "보드 범위를 벗어난 칸에는 아이템을 추가할 수 없습니다.")
         precondition(itemsByCell[cell] == nil, "이미 아이템이 있는 칸에는 새 아이템을 추가할 수 없습니다.")

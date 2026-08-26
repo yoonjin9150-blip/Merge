@@ -8,6 +8,11 @@
 import SpriteKit
 import UIKit
 
+struct BoardDeliveryItem {
+    let kind: BoardItemKind
+    let scenePosition: CGPoint
+}
+
 final class MergeBoardScene: SKScene {
 
     private struct DropResolution {
@@ -555,6 +560,46 @@ final class MergeBoardScene: SKScene {
         for item in boardState.itemsByCell.values {
             item.showsOrderCheck = activeOrderItemKinds.contains(item.kind)
         }
+    }
+
+    // MARK: - Order Delivery
+
+    // SwiftUI의 완료 버튼이 호출하더라도 실제 납품 가능 여부는 SpriteKit 보드 상태로 다시 확인합니다.
+    // 성공하면 노드를 보드에서 소비하고, 주문 카드 이동 연출에 사용할 종류와 출발 좌표를 반환합니다.
+    func consumeItemsForOrder(
+        _ requirement: OrderItemRequirement
+    ) -> [BoardDeliveryItem]? {
+        guard requirement.quantity > 0 else {
+            return nil
+        }
+
+        let availableItems = boardState.items(of: requirement.itemKind)
+            .filter { !$0.isAwaitingSpawnArrival && !$0.isHidden }
+
+        guard availableItems.count >= requirement.quantity else {
+            return nil
+        }
+
+        // BoardState가 위쪽 행·왼쪽 열 순서로 정렬했으므로 필요한 수량만 앞에서 선택합니다.
+        let itemsToDeliver = Array(availableItems.prefix(requirement.quantity))
+        let deliveryItems = itemsToDeliver.map {
+            BoardDeliveryItem(kind: $0.kind, scenePosition: $0.position)
+        }
+
+        if let selectedItem,
+           itemsToDeliver.contains(where: { $0 === selectedItem }) {
+            clearSelection()
+        }
+
+        // 화면 노드와 칸 점유 상태를 같은 흐름에서 제거해 유령 아이템이 남지 않게 합니다.
+        for item in itemsToDeliver {
+            boardState.removeItem(at: item.cell)
+            item.removeFromParent()
+        }
+
+        publishBoardItemState()
+        assertBoardItemsMatchStoredCells()
+        return deliveryItems
     }
 
     private func swapItems(
