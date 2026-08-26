@@ -14,7 +14,7 @@ final class OrderStore: ObservableObject {
     @Published private(set) var completingOrderIDs: Set<UUID> = []
     @Published private(set) var coins: Int
 
-    private let availableOrderTemplates: [GrainDeliveryOrder]
+    private var availableOrderTemplates: [GameOrderTemplate]
     private let defaults: UserDefaults
 
     private enum StorageKey {
@@ -25,7 +25,7 @@ final class OrderStore: ObservableObject {
         initialOrders: [GameOrder]? = nil,
         initialCoins: Int? = nil,
         defaults: UserDefaults = .standard,
-        availableOrderTemplates: [GrainDeliveryOrder] = GrainDeliveryOrder.allCases
+        availableOrderTemplates: [GameOrderTemplate]? = nil
     ) {
         let restoredCoins = initialCoins
             ?? (defaults.object(forKey: StorageKey.coins) as? Int)
@@ -48,6 +48,7 @@ final class OrderStore: ObservableObject {
         coins = restoredCoins
         self.defaults = defaults
         self.availableOrderTemplates = availableOrderTemplates
+            ?? GameOrderTemplate.initiallyUnlocked
 
         fillEmptySlots()
         saveCoins()
@@ -105,6 +106,21 @@ final class OrderStore: ObservableObject {
         }
 
         activeOrders.append(replacement)
+    }
+
+    // 진행 조건을 달성한 주문을 한 번만 풀에 추가하고, 비어 있는 주문 칸을 즉시 채웁니다.
+    // 이미 해금된 주문이면 아무것도 바꾸지 않아 앱 재진입이나 중복 이벤트에도 안전합니다.
+    @discardableResult
+    func unlock(_ template: GameOrderTemplate) -> Bool {
+        guard !availableOrderTemplates.contains(where: {
+            $0.templateID == template.templateID
+        }) else {
+            return false
+        }
+
+        availableOrderTemplates.append(template)
+        fillEmptySlots()
+        return true
     }
 
     private func fillEmptySlots() {

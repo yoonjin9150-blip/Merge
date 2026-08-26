@@ -25,6 +25,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.riceCake.nextKind == nil)
         #expect(BoardItemKind.grainSack.nextKind == nil)
         #expect(BoardItemKind.cookingPot.nextKind == nil)
+        #expect(BoardItemKind.sujebi.nextKind == nil)
     }
 
     @Test
@@ -36,6 +37,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.dough.spawnedItemKind == nil)
         #expect(BoardItemKind.noodle.spawnedItemKind == nil)
         #expect(BoardItemKind.riceCake.spawnedItemKind == nil)
+        #expect(BoardItemKind.sujebi.spawnedItemKind == nil)
     }
 
     @Test
@@ -47,6 +49,7 @@ struct BoardItemKindTests {
         #expect(!BoardItemKind.noodle.isGenerator)
         #expect(!BoardItemKind.riceCake.isGenerator)
         #expect(!BoardItemKind.cookingPot.isGenerator)
+        #expect(!BoardItemKind.sujebi.isGenerator)
     }
 
     @Test
@@ -55,6 +58,14 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.cookingPot.isCookingTool)
         #expect(!BoardItemKind.grainSack.isCookingTool)
         #expect(!BoardItemKind.wheat.isCookingTool)
+    }
+
+    @Test
+    func 수제비는머지재료가아닌완성음식으로분류된다() {
+        #expect(BoardItemKind.sujebi.role == .dish)
+        #expect(BoardItemKind.sujebi.isDish)
+        #expect(!BoardItemKind.sujebi.isCookingTool)
+        #expect(!BoardItemKind.sujebi.isMaximumMergeLevel)
     }
 
     @Test
@@ -77,13 +88,16 @@ struct BoardItemKindTests {
             (.flour, "FlourPixel"),
             (.dough, "DoughPixel"),
             (.noodle, "NoodlePixel"),
-            (.riceCake, "RiceCakePixel")
+            (.riceCake, "RiceCakePixel"),
+            (.sujebi, "SujebiPixel")
         ]
 
         for (kind, expectedTextureName) in expectedTextures {
             #expect(kind.textureName == expectedTextureName)
             #expect(UIImage(named: expectedTextureName) != nil)
         }
+
+        #expect(UIImage(named: "CookingPotOpenPixel") != nil)
     }
 
     @Test
@@ -95,6 +109,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.riceCake.requiredMergeCount == 15)
         #expect(BoardItemKind.grainSack.requiredMergeCount == nil)
         #expect(BoardItemKind.cookingPot.requiredMergeCount == nil)
+        #expect(BoardItemKind.sujebi.requiredMergeCount == nil)
     }
 
     @Test
@@ -106,5 +121,6 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.riceCake.deliveryCoinReward == 30)
         #expect(BoardItemKind.grainSack.deliveryCoinReward == nil)
         #expect(BoardItemKind.cookingPot.deliveryCoinReward == nil)
+        #expect(BoardItemKind.sujebi.deliveryCoinReward == nil)
     }
 }
