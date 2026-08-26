@@ -29,9 +29,30 @@
 		A4B5D1CF3031AA4B00E0DC31 /* MergeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MergeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A4B5D260303EB85500E0DC31 /* Exceptions for "Merge" folder in "MergeTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Resources/Sounds/bgm.wav,
+			);
+			target = A4B5D1C43031AA4B00E0DC31 /* MergeTests */;
+		};
+		A4B5D261303EB85500E0DC31 /* Exceptions for "Merge" folder in "MergeUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Resources/Sounds/bgm.wav,
+			);
+			target = A4B5D1CE3031AA4B00E0DC31 /* MergeUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A4B5D1BA3031AA4800E0DC31 /* Merge */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A4B5D260303EB85500E0DC31 /* Exceptions for "Merge" folder in "MergeTests" target */,
+				A4B5D261303EB85500E0DC31 /* Exceptions for "Merge" folder in "MergeUITests" target */,
+			);
 			path = Merge;
 			sourceTree = "<group>";
 		};
