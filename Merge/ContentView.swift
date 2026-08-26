@@ -144,7 +144,7 @@ struct ContentView: View {
             boardScene.onBoardItemCountsChanged = { counts in
                 boardItemCounts = counts
             }
-            synchronizePurchasedBoardItems()
+            synchronizePurchasedBoardItems(shopStore.purchasedProducts)
             energyStore.refresh()
         }
         .onReceive(orderStore.$activeOrders) { orders in
@@ -156,8 +156,9 @@ struct ContentView: View {
         .onReceive(energyTicker) { date in
             energyStore.refresh(at: date)
         }
-        .onReceive(shopStore.$purchasedProducts) { _ in
-            synchronizePurchasedBoardItems()
+        .onReceive(shopStore.$purchasedProducts) { purchasedProducts in
+            // @Published가 전달한 최신 값을 직접 사용해 저장 프로퍼티 갱신 시점에 의존하지 않습니다.
+            synchronizePurchasedBoardItems(purchasedProducts)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -242,10 +243,12 @@ struct ContentView: View {
         }
     }
 
-    private func synchronizePurchasedBoardItems() {
+    private func synchronizePurchasedBoardItems(
+        _ purchasedProducts: Set<ShopProduct>
+    ) {
         // 상품 선언 순서를 사용해 이후 조리도구가 늘어나도 복원 위치가 매번 같도록 합니다.
         boardScene.purchasedPermanentItemKinds = ShopProduct.allCases
-            .filter(shopStore.isPurchased)
+            .filter(purchasedProducts.contains)
             .map(\.boardItemKind)
     }
 
