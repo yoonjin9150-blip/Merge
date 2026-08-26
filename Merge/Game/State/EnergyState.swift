@@ -12,7 +12,7 @@ struct EnergyState: Equatable {
     static let initialEnergy = 100
 
     // 밸런스 테스트 후 이 값만 바꾸면 회복 주기를 조정할 수 있습니다.
-    static let recoveryInterval: TimeInterval = 30
+    static let recoveryInterval: TimeInterval = 60
 
     private(set) var currentEnergy: Int
     private(set) var recoveryAnchorDate: Date
@@ -60,7 +60,7 @@ struct EnergyState: Equatable {
             // 완충 이후의 남은 시간은 미리 저장하지 않습니다.
             recoveryAnchorDate = date
         } else {
-            // 30초 미만의 남은 시간은 다음 회복 계산에 이어서 사용합니다.
+            // 60초 미만의 남은 시간은 다음 회복 계산에 이어서 사용합니다.
             recoveryAnchorDate = recoveryAnchorDate.addingTimeInterval(
                 Double(recoveredEnergy) * Self.recoveryInterval
             )
@@ -78,7 +78,7 @@ struct EnergyState: Equatable {
         let wasFull = isFull
         currentEnergy -= 1
 
-        // 완충 상태에서 처음 에너지를 사용한 순간부터 새로운 30초 회복을 시작합니다.
+        // 완충 상태에서 처음 에너지를 사용한 순간부터 새로운 60초 회복을 시작합니다.
         if wasFull {
             recoveryAnchorDate = date
         }

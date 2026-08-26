@@ -45,18 +45,18 @@ struct EnergyStateTests {
     }
 
     @Test
-    func 경과한30초마다에너지가1씩회복된다() {
+    func 경과한60초마다에너지가1씩회복된다() {
         var state = EnergyState(
             currentEnergy: 90,
             recoveryAnchorDate: startDate
         )
 
-        state.recover(at: startDate.addingTimeInterval(90))
+        state.recover(at: startDate.addingTimeInterval(180))
 
         #expect(state.currentEnergy == 93)
         #expect(
             state.recoveryAnchorDate
-                == startDate.addingTimeInterval(90)
+                == startDate.addingTimeInterval(180)
         )
     }
 
@@ -84,7 +84,7 @@ struct EnergyStateTests {
         let fortySevenSecondsLater = startDate.addingTimeInterval(47)
 
         state.recover(at: fortySevenSecondsLater)
-        #expect(state.currentEnergy == 91)
+        #expect(state.currentEnergy == 90)
         #expect(
             state.secondsUntilNextRecovery(at: fortySevenSecondsLater) == 13
         )
@@ -94,14 +94,14 @@ struct EnergyStateTests {
         )
 
         #expect(didConsume)
-        #expect(state.currentEnergy == 90)
+        #expect(state.currentEnergy == 89)
         #expect(
             state.secondsUntilNextRecovery(at: fortySevenSecondsLater) == 13
         )
     }
 
     @Test
-    func 완충상태에서처음사용한순간부터30초회복이시작된다() {
+    func 완충상태에서처음사용한순간부터60초회복이시작된다() {
         var state = EnergyState(recoveryAnchorDate: startDate)
         let useDate = startDate.addingTimeInterval(300)
 
@@ -110,7 +110,7 @@ struct EnergyStateTests {
         #expect(didConsume)
         #expect(state.currentEnergy == 99)
         #expect(state.recoveryAnchorDate == useDate)
-        #expect(state.secondsUntilNextRecovery(at: useDate) == 30)
+        #expect(state.secondsUntilNextRecovery(at: useDate) == 60)
     }
 
     @Test
@@ -131,10 +131,10 @@ struct EnergyStateTests {
 
         let relaunchedStore = EnergyStore(
             defaults: defaults,
-            now: startDate.addingTimeInterval(30)
+            now: startDate.addingTimeInterval(60)
         )
 
         #expect(relaunchedStore.currentEnergy == 99)
-        #expect(relaunchedStore.secondsUntilNextRecovery == 30)
+        #expect(relaunchedStore.secondsUntilNextRecovery == 60)
     }
 }
