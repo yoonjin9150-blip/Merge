@@ -38,4 +38,19 @@ struct GameSoundEffectTests {
             #expect(resourceURL != nil)
         }
     }
+
+    @Test
+    func 메인배경음악은낮은음량으로무한반복된다() {
+        let track = BackgroundMusicTrack.mainGame
+
+        #expect(track.soundFileName == "bgm.wav")
+        #expect(track.numberOfLoops == -1)
+        #expect(track.volume == 0.22)
+        #expect(
+            Bundle.main.url(
+                forResource: track.soundFileName,
+                withExtension: nil
+            ) != nil
+        )
+    }
 }

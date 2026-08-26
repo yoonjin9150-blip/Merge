@@ -25,6 +25,7 @@ struct ContentView: View {
     @StateObject private var energyStore = EnergyStore()
     @StateObject private var orderStore = OrderStore()
     @StateObject private var shopStore = ShopStore()
+    @StateObject private var backgroundMusicPlayer = BackgroundMusicPlayer()
     @State private var isShopPresented = false
 
     private var activeOrders: [GameOrder] {
@@ -146,6 +147,7 @@ struct ContentView: View {
             }
             synchronizePurchasedBoardItems(shopStore.purchasedProducts)
             energyStore.refresh()
+            backgroundMusicPlayer.play()
         }
         .onReceive(orderStore.$activeOrders) { orders in
             // 주문 완료와 새 주문 보충 때 보드의 준비 체크 대상도 즉시 다시 계산합니다.
@@ -164,7 +166,14 @@ struct ContentView: View {
             if newPhase == .active {
                 // 백그라운드나 앱 종료 중 흐른 시간을 화면에 복귀할 때 즉시 반영합니다.
                 energyStore.refresh()
+                backgroundMusicPlayer.play()
+            } else {
+                // 화면을 벗어난 동안에는 음악을 멈추고 재생 위치는 보존합니다.
+                backgroundMusicPlayer.pause()
             }
+        }
+        .onDisappear {
+            backgroundMusicPlayer.pause()
         }
         .sheet(isPresented: $isShopPresented) {
             ShopView(
