@@ -21,6 +21,15 @@ struct OrderStripView: View {
         )
     }
 
+    private var actionableOrderIDs: [UUID] {
+        displayedOrders
+            .filter {
+                completingOrderIDs.contains($0.id)
+                    || $0.isReady(in: itemCounts)
+            }
+            .map(\.id)
+    }
+
     init(
         orders: [GameOrder],
         itemCounts: [BoardItemKind: Int],
@@ -39,23 +48,35 @@ struct OrderStripView: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 10) {
-                ForEach(displayedOrders) { order in
-                    OrderCardView(
-                        order: order,
-                        itemCounts: itemCounts,
-                        isCompleting: completingOrderIDs.contains(order.id),
-                        onComplete: { target in
-                            onComplete(order, target)
-                        }
-                    )
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 10) {
+                    ForEach(displayedOrders) { order in
+                        OrderCardView(
+                            order: order,
+                            itemCounts: itemCounts,
+                            isCompleting: completingOrderIDs.contains(order.id),
+                            onComplete: { target in
+                                onComplete(order, target)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 5)
+            }
+            .scrollIndicators(.hidden)
+            .onChange(of: actionableOrderIDs) { _, newIDs in
+                guard let firstActionableID = newIDs.first else {
+                    return
+                }
+
+                // 사용자가 오른쪽 주문을 보고 있더라도 새로 완료 가능해진 카드를 실제 화면 왼쪽에 보여 줍니다.
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    proxy.scrollTo(firstActionableID, anchor: .leading)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 5)
         }
-        .scrollIndicators(.hidden)
     }
 }
 
