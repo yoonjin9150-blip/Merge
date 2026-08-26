@@ -22,6 +22,7 @@ struct MergeNoteTests {
     @Test
     func 머지결과가아닌아이템에는음계가없다() {
         #expect(MergeNote.note(for: .grainSack) == nil)
+        #expect(MergeNote.note(for: .cookingPot) == nil)
         #expect(MergeNote.note(for: .wheat) == nil)
     }
 

@@ -5,8 +5,15 @@
 //  생성기와 재료의 종류별 규칙을 정의합니다.
 //
 
+enum BoardItemRole {
+    case generator
+    case ingredient
+    case cookingTool
+}
+
 enum BoardItemKind: Hashable {
     case grainSack
+    case cookingPot
     case wheat
     case flour
     case dough
@@ -19,6 +26,8 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return "GrainSackPixel"
+        case .cookingPot:
+            return "CookingPotPixel"
         case .wheat:
             return "WheatPixel"
         case .flour:
@@ -38,6 +47,8 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return 0.86
+        case .cookingPot:
+            return 0.92
         case .wheat:
             return 0.98
         case .flour:
@@ -55,7 +66,7 @@ enum BoardItemKind: Hashable {
     // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {
         switch self {
-        case .grainSack:
+        case .grainSack, .cookingPot:
             return nil
         case .wheat:
             return .flour
@@ -76,15 +87,32 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return .wheat
-        case .wheat, .flour, .dough, .noodle, .riceCake:
+        case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake:
             return nil
+        }
+    }
+
+    // 같은 보드 위에 있어도 생성기·재료·조리도구는 서로 다른 게임 규칙을 가집니다.
+    // 역할을 명시해 냄비를 최고 레벨 재료나 생성기로 잘못 판단하지 않게 합니다.
+    var role: BoardItemRole {
+        switch self {
+        case .grainSack:
+            return .generator
+        case .cookingPot:
+            return .cookingTool
+        case .wheat, .flour, .dough, .noodle, .riceCake:
+            return .ingredient
         }
     }
 
     // 탭해 다른 아이템을 만들어 내는 생성기인지 나타냅니다.
     // 화면에서는 이 값으로 반짝임과 에너지 번개 배지를 표시합니다.
     var isGenerator: Bool {
-        spawnedItemKind != nil
+        role == .generator
+    }
+
+    var isCookingTool: Bool {
+        role == .cookingTool
     }
 
     // 현재 머지 트리에서 더 높은 단계로 합칠 수 없는 최종 재료인지 나타냅니다.
@@ -93,8 +121,37 @@ enum BoardItemKind: Hashable {
         switch self {
         case .riceCake:
             return true
-        case .grainSack, .wheat, .flour, .dough, .noodle:
+        case .grainSack, .cookingPot, .wheat, .flour, .dough, .noodle:
             return false
         }
+    }
+
+    // 생성기에서 나오는 1단계 재료 두 개부터 이 단계 하나를 만들 때 필요한 누적 머지 횟수입니다.
+    // 2단계부터 1, 3, 7, 15로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
+    var requiredMergeCount: Int? {
+        switch self {
+        case .grainSack, .cookingPot:
+            return nil
+        case .wheat:
+            return 0
+        case .flour:
+            return 1
+        case .dough:
+            return 3
+        case .noodle:
+            return 7
+        case .riceCake:
+            return 15
+        }
+    }
+
+    // 현재 곡물 납품 주문은 누적 머지 1회당 2코인을 지급합니다.
+    // 첫 밀가루 주문은 초반 구매 루프를 열 수 있도록 최저 보상 3코인을 보장합니다.
+    var deliveryCoinReward: Int? {
+        guard let requiredMergeCount, requiredMergeCount > 0 else {
+            return nil
+        }
+
+        return max(3, requiredMergeCount * 2)
     }
 }

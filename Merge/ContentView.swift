@@ -24,6 +24,8 @@ struct ContentView: View {
 
     @StateObject private var energyStore = EnergyStore()
     @StateObject private var orderStore = OrderStore()
+    @StateObject private var shopStore = ShopStore()
+    @State private var isShopPresented = false
 
     private var activeOrders: [GameOrder] {
         orderStore.activeOrders
@@ -72,6 +74,28 @@ struct ContentView: View {
                         CoinStatusView(coins: orderStore.coins)
 
                         Spacer()
+
+                        Button {
+                            isShopPresented = true
+                        } label: {
+                            Text("상점")
+                                .font(.system(size: 15, weight: .black, design: .rounded))
+                                .foregroundStyle(Color(red: 0.08, green: 0.07, blue: 0.20))
+                                .padding(.horizontal, 12)
+                                .frame(height: 44)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color(red: 1, green: 0.80, blue: 0.36))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(
+                                                    Color(red: 0.08, green: 0.07, blue: 0.20),
+                                                    lineWidth: 3
+                                                )
+                                        }
+                                }
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.top, 14)
                     .padding(.horizontal, 24)
@@ -120,6 +144,7 @@ struct ContentView: View {
             boardScene.onBoardItemCountsChanged = { counts in
                 boardItemCounts = counts
             }
+            synchronizePurchasedBoardItems(shopStore.purchasedProducts)
             energyStore.refresh()
         }
         .onReceive(orderStore.$activeOrders) { orders in
@@ -131,11 +156,26 @@ struct ContentView: View {
         .onReceive(energyTicker) { date in
             energyStore.refresh(at: date)
         }
+        .onReceive(shopStore.$purchasedProducts) { purchasedProducts in
+            // @Published가 전달한 최신 값을 직접 사용해 저장 프로퍼티 갱신 시점에 의존하지 않습니다.
+            synchronizePurchasedBoardItems(purchasedProducts)
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 // 백그라운드나 앱 종료 중 흐른 시간을 화면에 복귀할 때 즉시 반영합니다.
                 energyStore.refresh()
             }
+        }
+        .sheet(isPresented: $isShopPresented) {
+            ShopView(
+                coins: orderStore.coins,
+                isCookingPotPurchased: shopStore.isPurchased(.cookingPot),
+                canPlaceCookingPot: boardScene.canPlacePermanentItem(.cookingPot),
+                onPurchaseCookingPot: {
+                    purchase(.cookingPot)
+                }
+            )
+            .presentationDetents([.large])
         }
     }
 
@@ -179,6 +219,37 @@ struct ContentView: View {
             )
             orderStore.replenishOneOrder()
         }
+    }
+
+    private func purchase(_ product: ShopProduct) -> Bool {
+        guard !shopStore.isPurchased(product) else {
+            return false
+        }
+
+        return orderStore.purchase(cost: product.price) {
+            let kind = product.boardItemKind
+
+            guard boardScene.placePermanentItemIfPossible(kind) else {
+                return false
+            }
+
+            guard shopStore.markPurchased(product) else {
+                // 저장 상태가 예상과 달라 구매 확정에 실패하면 화면 배치도 함께 되돌립니다.
+                boardScene.removePermanentItem(kind)
+                return false
+            }
+
+            return true
+        }
+    }
+
+    private func synchronizePurchasedBoardItems(
+        _ purchasedProducts: Set<ShopProduct>
+    ) {
+        // 상품 선언 순서를 사용해 이후 조리도구가 늘어나도 복원 위치가 매번 같도록 합니다.
+        boardScene.purchasedPermanentItemKinds = ShopProduct.allCases
+            .filter(purchasedProducts.contains)
+            .map(\.boardItemKind)
     }
 
     private func rootPosition(for scenePosition: CGPoint) -> CGPoint {

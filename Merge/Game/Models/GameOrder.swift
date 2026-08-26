@@ -90,41 +90,32 @@ enum GrainDeliveryOrder: CaseIterable {
     func makeOrder(id: UUID = UUID()) -> GameOrder {
         switch self {
         case .flour:
-            return GameOrder(
-                id: id,
-                templateID: templateID,
-                title: "밀가루 배달",
-                requestedItem: OrderItemRequirement(itemKind: .flour, quantity: 1),
-                recipeIngredients: [],
-                coinReward: 3
-            )
+            return makeDeliveryOrder(id: id, title: "밀가루 배달", itemKind: .flour)
         case .dough:
-            return GameOrder(
-                id: id,
-                templateID: templateID,
-                title: "반죽 배달",
-                requestedItem: OrderItemRequirement(itemKind: .dough, quantity: 1),
-                recipeIngredients: [],
-                coinReward: 6
-            )
+            return makeDeliveryOrder(id: id, title: "반죽 배달", itemKind: .dough)
         case .noodle:
-            return GameOrder(
-                id: id,
-                templateID: templateID,
-                title: "면 배달",
-                requestedItem: OrderItemRequirement(itemKind: .noodle, quantity: 1),
-                recipeIngredients: [],
-                coinReward: 14
-            )
+            return makeDeliveryOrder(id: id, title: "면 배달", itemKind: .noodle)
         case .riceCake:
-            return GameOrder(
-                id: id,
-                templateID: templateID,
-                title: "떡 배달",
-                requestedItem: OrderItemRequirement(itemKind: .riceCake, quantity: 1),
-                recipeIngredients: [],
-                coinReward: 30
-            )
+            return makeDeliveryOrder(id: id, title: "떡 배달", itemKind: .riceCake)
         }
+    }
+
+    private func makeDeliveryOrder(
+        id: UUID,
+        title: String,
+        itemKind: BoardItemKind
+    ) -> GameOrder {
+        guard let coinReward = itemKind.deliveryCoinReward else {
+            preconditionFailure("납품 주문 아이템에는 코인 보상 규칙이 필요합니다.")
+        }
+
+        return GameOrder(
+            id: id,
+            templateID: templateID,
+            title: title,
+            requestedItem: OrderItemRequirement(itemKind: itemKind, quantity: 1),
+            recipeIngredients: [],
+            coinReward: coinReward
+        )
     }
 }

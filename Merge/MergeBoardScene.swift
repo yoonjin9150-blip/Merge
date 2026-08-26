@@ -107,6 +107,14 @@ final class MergeBoardScene: SKScene {
     // nil이거나 에너지가 부족해 false를 반환하면 아이템을 생성하지 않습니다.
     var consumeEnergyForSpawn: (() -> Bool)?
 
+    // 상점에서 영구 구매한 보드 아이템 종류입니다.
+    // 장면이 만들어지기 전 전달되어도 buildBoard에서 복원하고, 실행 중 바뀌면 즉시 빈 칸에 배치합니다.
+    var purchasedPermanentItemKinds: [BoardItemKind] = [] {
+        didSet {
+            restorePurchasedPermanentItemsIfPossible()
+        }
+    }
+
     // 활성 주문의 완성품과 재료에 해당하는 아이템 종류입니다.
     // 값이 바뀌면 현재 보드의 모든 아이템 체크 표시를 다시 계산합니다.
     var activeOrderItemKinds: Set<BoardItemKind> = [] {
@@ -179,6 +187,7 @@ final class MergeBoardScene: SKScene {
             rows: rows
         )
         addInitialItems()
+        restorePurchasedPermanentItemsIfPossible()
         publishBoardItemState()
         assertBoardItemsMatchStoredCells()
     }
@@ -194,6 +203,65 @@ final class MergeBoardScene: SKScene {
             column: 0,
             row: 0
         )
+    }
+
+    // 상점 구매 전에 사용할 수 있는 빈 칸이 있고, 같은 영구 아이템이 아직 없는지 확인합니다.
+    func canPlacePermanentItem(_ kind: BoardItemKind) -> Bool {
+        kind.isCookingTool
+            && boardNode.parent != nil
+            && boardState.items(of: kind).isEmpty
+            && boardState.firstEmptyCell() != nil
+    }
+
+    // 구매가 성공한 조리도구를 화면 위쪽 행, 왼쪽 열부터 찾은 첫 빈 칸에 배치합니다.
+    // 화면 노드와 BoardState를 addBoardItem 한 번으로 함께 갱신합니다.
+    @discardableResult
+    func placePermanentItemIfPossible(_ kind: BoardItemKind) -> Bool {
+        guard canPlacePermanentItem(kind),
+              let emptyCell = boardState.firstEmptyCell() else {
+            return false
+        }
+
+        addBoardItem(
+            kind,
+            column: emptyCell.column,
+            row: emptyCell.row
+        )
+        publishBoardItemState()
+        assertBoardItemsMatchStoredCells()
+        return true
+    }
+
+    // 구매 거래 도중 예상치 못한 저장 실패가 생겼을 때 보드 배치를 되돌리기 위한 함수입니다.
+    @discardableResult
+    func removePermanentItem(_ kind: BoardItemKind) -> Bool {
+        guard kind.isCookingTool,
+              let item = boardState.items(of: kind).first else {
+            return false
+        }
+
+        if selectedItem === item {
+            clearSelection()
+        }
+
+        boardState.removeItem(at: item.cell)
+        item.removeFromParent()
+        publishBoardItemState()
+        assertBoardItemsMatchStoredCells()
+        return true
+    }
+
+    private func restorePurchasedPermanentItemsIfPossible() {
+        // didMove 이전에는 칸 크기와 boardNode가 준비되지 않았으므로 buildBoard가 나중에 복원합니다.
+        guard boardNode.parent != nil, cellSize > 0 else {
+            return
+        }
+
+        for kind in purchasedPermanentItemKinds where boardState.items(of: kind).isEmpty {
+            guard placePermanentItemIfPossible(kind) else {
+                continue
+            }
+        }
     }
 
     @discardableResult
