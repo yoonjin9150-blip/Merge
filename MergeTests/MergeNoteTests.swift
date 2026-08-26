@@ -17,6 +17,9 @@ struct MergeNoteTests {
         #expect(MergeNote.note(for: .dough) == .reNote)
         #expect(MergeNote.note(for: .noodle) == .miNote)
         #expect(MergeNote.note(for: .riceCake) == .faNote)
+        #expect(MergeNote.note(for: .chiliPowder) == .doNote)
+        #expect(MergeNote.note(for: .gochujang) == .reNote)
+        #expect(MergeNote.note(for: .seasoningSauce) == .miNote)
     }
 
     @Test
@@ -24,6 +27,8 @@ struct MergeNoteTests {
         #expect(MergeNote.note(for: .grainSack) == nil)
         #expect(MergeNote.note(for: .cookingPot) == nil)
         #expect(MergeNote.note(for: .wheat) == nil)
+        #expect(MergeNote.note(for: .jangdokdae) == nil)
+        #expect(MergeNote.note(for: .chiliPepper) == nil)
     }
 
     @Test

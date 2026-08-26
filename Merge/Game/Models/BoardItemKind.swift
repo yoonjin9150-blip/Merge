@@ -14,12 +14,17 @@ enum BoardItemRole {
 
 enum BoardItemKind: Hashable {
     case grainSack
+    case jangdokdae
     case cookingPot
     case wheat
     case flour
     case dough
     case noodle
     case riceCake
+    case chiliPepper
+    case chiliPowder
+    case gochujang
+    case seasoningSauce
     case sujebi
 
     // 각 보드 아이템과 연결된 Assets.xcassets의 픽셀 이미지 이름입니다.
@@ -28,6 +33,8 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return "GrainSackPixel"
+        case .jangdokdae:
+            return "JangdokdaePixel"
         case .cookingPot:
             return "CookingPotPixel"
         case .wheat:
@@ -40,6 +47,14 @@ enum BoardItemKind: Hashable {
             return "NoodlePixel"
         case .riceCake:
             return "RiceCakePixel"
+        case .chiliPepper:
+            return "ChiliPepperPixel"
+        case .chiliPowder:
+            return "ChiliPowderPixel"
+        case .gochujang:
+            return "GochujangPixel"
+        case .seasoningSauce:
+            return "SeasoningSaucePixel"
         case .sujebi:
             return "SujebiPixel"
         }
@@ -51,6 +66,8 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return 0.86
+        case .jangdokdae:
+            return 0.88
         case .cookingPot:
             return 0.92
         case .wheat:
@@ -63,6 +80,10 @@ enum BoardItemKind: Hashable {
             return 0.94
         case .riceCake:
             return 0.98
+        case .chiliPepper:
+            return 0.94
+        case .chiliPowder, .gochujang, .seasoningSauce:
+            return 0.92
         case .sujebi:
             return 0.94
         }
@@ -72,7 +93,7 @@ enum BoardItemKind: Hashable {
     // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {
         switch self {
-        case .grainSack, .cookingPot, .sujebi:
+        case .grainSack, .jangdokdae, .cookingPot, .seasoningSauce, .sujebi:
             return nil
         case .wheat:
             return .flour
@@ -84,6 +105,12 @@ enum BoardItemKind: Hashable {
             return .riceCake
         case .riceCake:
             return nil
+        case .chiliPepper:
+            return .chiliPowder
+        case .chiliPowder:
+            return .gochujang
+        case .gochujang:
+            return .seasoningSauce
         }
     }
 
@@ -93,7 +120,10 @@ enum BoardItemKind: Hashable {
         switch self {
         case .grainSack:
             return .wheat
-        case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake, .sujebi:
+        case .jangdokdae:
+            return .chiliPepper
+        case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake,
+             .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce, .sujebi:
             return nil
         }
     }
@@ -102,13 +132,14 @@ enum BoardItemKind: Hashable {
     // 역할을 명시해 냄비를 최고 레벨 재료나 생성기로 잘못 판단하지 않게 합니다.
     var role: BoardItemRole {
         switch self {
-        case .grainSack:
+        case .grainSack, .jangdokdae:
             return .generator
         case .cookingPot:
             return .cookingTool
         case .sujebi:
             return .dish
-        case .wheat, .flour, .dough, .noodle, .riceCake:
+        case .wheat, .flour, .dough, .noodle, .riceCake,
+             .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce:
             return .ingredient
         }
     }
@@ -132,9 +163,10 @@ enum BoardItemKind: Hashable {
     // nextKind가 nil인 생성기까지 최고 레벨로 오인하지 않도록 재료 종류를 명시합니다.
     var isMaximumMergeLevel: Bool {
         switch self {
-        case .riceCake:
+        case .riceCake, .seasoningSauce:
             return true
-        case .grainSack, .cookingPot, .wheat, .flour, .dough, .noodle, .sujebi:
+        case .grainSack, .jangdokdae, .cookingPot, .wheat, .flour, .dough,
+             .noodle, .chiliPepper, .chiliPowder, .gochujang, .sujebi:
             return false
         }
     }
@@ -143,7 +175,7 @@ enum BoardItemKind: Hashable {
     // 2단계부터 1, 3, 7, 15로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
     var requiredMergeCount: Int? {
         switch self {
-        case .grainSack, .cookingPot, .sujebi:
+        case .grainSack, .jangdokdae, .cookingPot, .sujebi:
             return nil
         case .wheat:
             return 0
@@ -155,6 +187,14 @@ enum BoardItemKind: Hashable {
             return 7
         case .riceCake:
             return 15
+        case .chiliPepper:
+            return 0
+        case .chiliPowder:
+            return 1
+        case .gochujang:
+            return 3
+        case .seasoningSauce:
+            return 7
         }
     }
 
