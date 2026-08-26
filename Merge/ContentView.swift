@@ -33,10 +33,6 @@ struct ContentView: View {
     }
 
     private var topHUDHeight: CGFloat {
-        if activeOrders.contains(where: { $0.requiredToolKind != nil }) {
-            return 258
-        }
-
         return activeOrders.contains(where: { !$0.recipeIngredients.isEmpty })
             ? 234
             : 202
@@ -66,6 +62,7 @@ struct ContentView: View {
         ZStack {
             // 상단·SpriteKit·하단 영역 뒤로 하나의 픽셀 하늘 배경이 이어집니다.
             PixelSkyBackground()
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // 에너지·코인 상태와 최대 다섯 개의 주문 목록을 표시하는 상단 HUD입니다.
@@ -149,7 +146,6 @@ struct ContentView: View {
             }
         }
         .coordinateSpace(name: "gameRoot")
-        .ignoresSafeArea(edges: .bottom)
         .onAppear {
             // SpriteKit은 빈 칸을 확인한 뒤 이 클로저를 호출해 성공할 스폰의 에너지만 차감합니다.
             boardScene.consumeEnergyForSpawn = { [weak energyStore] in

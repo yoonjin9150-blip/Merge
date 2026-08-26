@@ -43,10 +43,6 @@ struct OrderCardView: View {
     }
 
     private var cardHeight: CGFloat {
-        if order.requiredToolKind != nil {
-            return 166
-        }
-
         return order.recipeIngredients.isEmpty ? 110 : 142
     }
 
@@ -100,10 +96,6 @@ struct OrderCardView: View {
 
             if !order.recipeIngredients.isEmpty {
                 recipeIngredients
-            }
-
-            if let requiredToolKind = order.requiredToolKind {
-                requiredTool(requiredToolKind)
             }
 
             Button(isCompleting ? "납품 중" : "완료") {
@@ -173,27 +165,36 @@ struct OrderCardView: View {
                     sideLength: 28
                 )
             }
+
+            if let requiredToolKind = order.requiredToolKind {
+                Text("·")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor.opacity(0.58))
+
+                Text("도구")
+                    .font(.system(size: 8, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor.opacity(0.72))
+
+                requiredTool(requiredToolKind)
+            }
         }
     }
 
     private func requiredTool(_ kind: BoardItemKind) -> some View {
-        HStack(spacing: 4) {
-            Text("사용 도구")
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .foregroundStyle(outlineColor.opacity(0.72))
-
+        ZStack {
             Image(kind.textureName)
                 .resizable()
                 .interpolation(.none)
                 .scaledToFit()
-                .frame(width: 22, height: 22)
+                .frame(width: 24, height: 24)
 
             if itemCounts[kind, default: 0] > 0 {
                 PixelPreparedCheck()
-                    .scaleEffect(0.78)
+                    .scaleEffect(0.62)
+                    .offset(x: 6, y: 6)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: 24, height: 24)
         .accessibilityLabel("필요한 사용 도구")
         .accessibilityValue(itemCounts[kind, default: 0] > 0 ? "준비됨" : "없음")
     }
