@@ -13,6 +13,11 @@ struct BoardDeliveryItem {
     let scenePosition: CGPoint
 }
 
+enum CookingPotSelectionState: Equatable {
+    case loaded(BoardItemKind)
+    case cooking
+}
+
 final class MergeBoardScene: SKScene {
 
     private struct DropResolution {
@@ -31,6 +36,13 @@ final class MergeBoardScene: SKScene {
         static let duration: TimeInterval = 0.25
         static let effectNodeName = "spawnAnimation"
         static let effectZPosition: CGFloat = 3
+    }
+
+    private enum CookingAnimation {
+        static let shakeDistance: CGFloat = 3
+        static let shakeStepDuration: TimeInterval = 0.07
+        static let shakeCount = 5
+        static let foodTravelDuration: TimeInterval = 0.34
     }
 
     // MARK: - 보드 규칙
@@ -127,6 +139,13 @@ final class MergeBoardScene: SKScene {
     var onBoardItemCountsChanged: (([BoardItemKind: Int]) -> Void)? {
         didSet {
             publishBoardItemState()
+        }
+    }
+
+    // 선택한 냄비의 상태를 SwiftUI 하단 조리 패널에 전달합니다.
+    var onCookingPotSelectionChanged: ((CookingPotSelectionState?) -> Void)? {
+        didSet {
+            publishCookingPotSelection()
         }
     }
 
@@ -304,6 +323,12 @@ final class MergeBoardScene: SKScene {
             return
         }
 
+
+        // 조리 중인 냄비는 연출이 끝날 때까지 탭과 드래그를 받지 않습니다.
+        guard !item.isCooking else {
+            return
+        }
+
         // 선택 표시를 숨기기 전에, 이번 터치가 선택된 아이템을 다시 누른 것인지 저장합니다.
         wasSelectedAtTouchStart = selectedItem === item && item.isSelected
 
@@ -335,6 +360,11 @@ final class MergeBoardScene: SKScene {
 
         let touchLocation = activeTouch.location(in: self)
 
+        // 재료가 들어 있는 냄비는 선택할 수는 있지만 칸 밖으로 끌어낼 수 없습니다.
+        guard item.isDraggable else {
+            return
+        }
+
         // 기준 거리보다 적게 움직였다면 아직 탭일 수 있으므로 아이템을 움직이지 않습니다.
         guard recognizeDragIfNeeded(at: touchLocation) else {
             return
@@ -364,6 +394,16 @@ final class MergeBoardScene: SKScene {
         }
 
         let touchEndLocation = activeTouch.location(in: self)
+
+        // 재료가 들어 있는 냄비는 손가락 이동량과 관계없이 원래 칸에 고정합니다.
+        // touchesMoved뿐 아니라 최종 좌표를 반영하는 touchesEnded에서도 막아야 보드 상태가 바뀌지 않습니다.
+        guard item.isDraggable else {
+            item.position = positionForCell(startCell)
+            finishDragging()
+            select(item)
+            assertBoardItemsMatchStoredCells()
+            return
+        }
 
         // 손을 뗀 최종 위치까지 확인해 드래그 기준 거리보다 적게 움직였다면 탭으로 처리합니다.
         if !recognizeDragIfNeeded(at: touchEndLocation) {
@@ -558,6 +598,27 @@ final class MergeBoardScene: SKScene {
             )
         }
 
+        // 반죽을 열린 빈 냄비에 놓으면 반죽 노드를 제거하고 냄비의 내용물 상태로 옮깁니다.
+        // 다른 재료이거나 이미 내용물이 있는 냄비라면 두 아이템을 교체하지 않고 원래 칸으로 돌립니다.
+        if targetItem.kind.isCookingTool {
+            guard draggedItem.kind == .dough,
+                  targetItem.loadCookingIngredient(.dough) else {
+                draggedItem.position = positionForCell(startCell)
+                return DropResolution(
+                    itemToSelect: draggedItem,
+                    shouldPlayMergeFeedback: false
+                )
+            }
+
+            boardState.removeItem(at: startCell)
+            draggedItem.removeFromParent()
+            publishBoardItemState()
+            return DropResolution(
+                itemToSelect: targetItem,
+                shouldPlayMergeFeedback: false
+            )
+        }
+
         // 같은 재료이고 다음 단계가 있다면 두 아이템을 다음 단계 하나로 머지합니다.
         // 단계별 규칙은 BoardItemKind.nextKind가 담당하므로 모든 곡물 단계가 같은 흐름을 사용합니다.
         if draggedItem.kind == targetItem.kind,
@@ -628,6 +689,158 @@ final class MergeBoardScene: SKScene {
         for item in boardState.itemsByCell.values {
             item.showsOrderCheck = activeOrderItemKinds.contains(item.kind)
         }
+    }
+
+    // MARK: - Cooking
+
+    // 선택한 냄비에서 조리 전 재료를 빼 첫 번째 빈 칸에 되돌립니다.
+    @discardableResult
+    func removeIngredientFromSelectedPot() -> Bool {
+        guard let pot = selectedItem,
+              pot.kind.isCookingTool,
+              let emptyCell = boardState.firstEmptyCell(),
+              let ingredientKind = pot.removeCookingIngredient() else {
+            return false
+        }
+
+        addBoardItem(
+            ingredientKind,
+            column: emptyCell.column,
+            row: emptyCell.row
+        )
+        publishCookingPotSelection()
+        publishBoardItemState()
+        assertBoardItemsMatchStoredCells()
+        return true
+    }
+
+    // 선택한 냄비의 반죽을 소비하고, 빈 칸 하나를 수제비 도착 칸으로 먼저 예약한 뒤 조리를 시작합니다.
+    @discardableResult
+    func cookSelectedPot() -> Bool {
+        guard let pot = selectedItem,
+              pot.kind.isCookingTool,
+              pot.cookingPotState == .loaded(.dough),
+              let outputCell = boardState.firstEmptyCell() else {
+            return false
+        }
+
+        // 조리 도중 생성기 연속 탭으로 빈 칸을 빼앗기지 않도록 완성품을 숨긴 채 BoardState에 먼저 등록합니다.
+        let sujebi = addBoardItem(
+            .sujebi,
+            column: outputCell.column,
+            row: outputCell.row
+        )
+        sujebi.isAwaitingSpawnArrival = true
+        sujebi.isHidden = true
+
+        guard pot.beginCooking() else {
+            boardState.removeItem(at: outputCell)
+            sujebi.removeFromParent()
+            return false
+        }
+
+        publishCookingPotSelection()
+        playCookingAnimation(on: pot, revealing: sujebi)
+        return true
+    }
+
+    private func playCookingAnimation(
+        on pot: BoardItemNode,
+        revealing sujebi: BoardItemNode
+    ) {
+        let potCenter = positionForCell(pot.cell)
+        let steam = makeSteamEffect(at: potCenter)
+        boardNode.addChild(steam)
+
+        let shakeRight = SKAction.moveBy(
+            x: CookingAnimation.shakeDistance,
+            y: 0,
+            duration: CookingAnimation.shakeStepDuration
+        )
+        let shakeLeft = SKAction.moveBy(
+            x: -CookingAnimation.shakeDistance * 2,
+            y: 0,
+            duration: CookingAnimation.shakeStepDuration * 2
+        )
+        let returnCenter = SKAction.move(
+            to: potCenter,
+            duration: CookingAnimation.shakeStepDuration
+        )
+        let oneShake = SKAction.sequence([shakeRight, shakeLeft, returnCenter])
+
+        pot.run(.repeat(oneShake, count: CookingAnimation.shakeCount)) {
+            [weak self, weak pot, weak sujebi, weak steam] in
+            steam?.removeFromParent()
+
+            guard let self,
+                  let pot,
+                  let sujebi,
+                  pot.parent === self.boardNode,
+                  sujebi.parent === self.boardNode else {
+                return
+            }
+
+            pot.position = potCenter
+            pot.finishCooking()
+            self.publishCookingPotSelection()
+            self.playCookedFoodAnimation(from: pot, revealing: sujebi)
+        }
+    }
+
+    private func playCookedFoodAnimation(
+        from pot: BoardItemNode,
+        revealing sujebi: BoardItemNode
+    ) {
+        let effectNode = BoardItemNode.makeVisualNode(for: .sujebi, cellSize: cellSize)
+        effectNode.position = pot.position
+        effectNode.zPosition = 4
+        boardNode.addChild(effectNode)
+
+        let move = SKAction.move(
+            to: positionForCell(sujebi.cell),
+            duration: CookingAnimation.foodTravelDuration
+        )
+        move.timingMode = .easeOut
+        let pop = SKAction.sequence([
+            .scale(to: 1.14, duration: CookingAnimation.foodTravelDuration * 0.55),
+            .scale(to: 1, duration: CookingAnimation.foodTravelDuration * 0.45)
+        ])
+
+        effectNode.run(.group([move, pop])) {
+            [weak self, weak effectNode, weak sujebi] in
+            effectNode?.removeFromParent()
+
+            guard let self,
+                  let sujebi,
+                  sujebi.parent === self.boardNode else {
+                return
+            }
+
+            sujebi.isAwaitingSpawnArrival = false
+            sujebi.isHidden = false
+            self.publishBoardItemState()
+            self.assertBoardItemsMatchStoredCells()
+        }
+    }
+
+    private func makeSteamEffect(at potCenter: CGPoint) -> SKNode {
+        let steam = SKNode()
+        steam.position = CGPoint(x: potCenter.x, y: potCenter.y + cellSize * 0.38)
+        steam.zPosition = 4
+
+        for horizontalOffset: CGFloat in [-0.14, 0, 0.14] {
+            let puff = SKShapeNode(circleOfRadius: cellSize * 0.07)
+            puff.fillColor = .white.withAlphaComponent(0.78)
+            puff.strokeColor = .clear
+            puff.position.x = cellSize * horizontalOffset
+            puff.run(.repeatForever(.sequence([
+                .moveBy(x: 0, y: cellSize * 0.16, duration: 0.35),
+                .moveBy(x: 0, y: -cellSize * 0.16, duration: 0)
+            ])))
+            steam.addChild(puff)
+        }
+
+        return steam
     }
 
     // MARK: - Order Delivery
@@ -806,11 +1019,30 @@ final class MergeBoardScene: SKScene {
         clearSelection()
         selectedItem = item
         item.isSelected = true
+        publishCookingPotSelection()
     }
 
     private func clearSelection() {
         selectedItem?.isSelected = false
         selectedItem = nil
+        publishCookingPotSelection()
+    }
+
+    private func publishCookingPotSelection() {
+        guard let selectedItem,
+              selectedItem.kind.isCookingTool else {
+            onCookingPotSelectionChanged?(nil)
+            return
+        }
+
+        switch selectedItem.cookingPotState {
+        case .empty:
+            onCookingPotSelectionChanged?(nil)
+        case let .loaded(ingredientKind):
+            onCookingPotSelectionChanged?(.loaded(ingredientKind))
+        case .cooking:
+            onCookingPotSelectionChanged?(.cooking)
+        }
     }
 
     private func boardItemNode(at position: CGPoint) -> BoardItemNode? {

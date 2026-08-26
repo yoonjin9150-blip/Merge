@@ -33,7 +33,11 @@ struct ContentView: View {
     }
 
     private var topHUDHeight: CGFloat {
-        activeOrders.contains(where: { !$0.recipeIngredients.isEmpty })
+        if activeOrders.contains(where: { $0.requiredToolKind != nil }) {
+            return 258
+        }
+
+        return activeOrders.contains(where: { !$0.recipeIngredients.isEmpty })
             ? 234
             : 202
     }
@@ -42,6 +46,7 @@ struct ContentView: View {
     // 주문 카드의 체크와 완료 버튼 상태를 계산하는 데 사용합니다.
     @State private var boardItemCounts: [BoardItemKind: Int] = [:]
     @State private var deliveryEffects: [OrderDeliveryEffect] = []
+    @State private var cookingPotSelection: CookingPotSelectionState?
 
     // SpriteKit 게임판입니다. 화면 크기에 맞춰 장면의 크기도 바뀝니다.
     @State private var boardScene: MergeBoardScene = {
@@ -121,9 +126,22 @@ struct ContentView: View {
                     options: [.allowsTransparency]
                 )
 
-                // 나중에 안내 문구가 들어갈 하단 영역입니다.
-                Color.clear
+                // 재료가 들어 있는 냄비를 선택했을 때만 조리 제어판을 표시합니다.
+                if let cookingPotSelection {
+                    CookingControlView(
+                        state: cookingPotSelection,
+                        onRemoveIngredient: {
+                            boardScene.removeIngredientFromSelectedPot()
+                        },
+                        onCook: {
+                            boardScene.cookSelectedPot()
+                        }
+                    )
                     .frame(height: 76)
+                } else {
+                    Color.clear
+                        .frame(height: 76)
+                }
             }
 
             ForEach(deliveryEffects) { effect in
@@ -144,6 +162,9 @@ struct ContentView: View {
             )
             boardScene.onBoardItemCountsChanged = { counts in
                 boardItemCounts = counts
+            }
+            boardScene.onCookingPotSelectionChanged = { state in
+                cookingPotSelection = state
             }
             synchronizePurchasedBoardItems(shopStore.purchasedProducts)
             energyStore.refresh()
@@ -259,6 +280,12 @@ struct ContentView: View {
         boardScene.purchasedPermanentItemKinds = ShopProduct.allCases
             .filter(purchasedProducts.contains)
             .map(\.boardItemKind)
+
+        // 냄비를 얻은 뒤에만 완성할 수 있는 수제비 주문을 주문 풀에 추가합니다.
+        // unlock은 중복 호출되어도 같은 주문 종류를 두 번 추가하지 않습니다.
+        if purchasedProducts.contains(.cookingPot) {
+            orderStore.unlock(.sujebi)
+        }
     }
 
     private func rootPosition(for scenePosition: CGPoint) -> CGPoint {
