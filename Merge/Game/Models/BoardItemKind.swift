@@ -97,4 +97,33 @@ enum BoardItemKind: Hashable {
             return false
         }
     }
+
+    // 생성기에서 나오는 1단계 재료 두 개부터 이 단계 하나를 만들 때 필요한 누적 머지 횟수입니다.
+    // 2단계부터 1, 3, 7, 15로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
+    var requiredMergeCount: Int? {
+        switch self {
+        case .grainSack:
+            return nil
+        case .wheat:
+            return 0
+        case .flour:
+            return 1
+        case .dough:
+            return 3
+        case .noodle:
+            return 7
+        case .riceCake:
+            return 15
+        }
+    }
+
+    // 현재 곡물 납품 주문은 누적 머지 1회당 2코인을 지급합니다.
+    // 첫 밀가루 주문은 초반 구매 루프를 열 수 있도록 최저 보상 3코인을 보장합니다.
+    var deliveryCoinReward: Int? {
+        guard let requiredMergeCount, requiredMergeCount > 0 else {
+            return nil
+        }
+
+        return max(3, requiredMergeCount * 2)
+    }
 }

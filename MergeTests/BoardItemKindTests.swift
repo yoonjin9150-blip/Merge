@@ -72,4 +72,24 @@ struct BoardItemKindTests {
             #expect(UIImage(named: expectedTextureName) != nil)
         }
     }
+
+    @Test
+    func 곡물단계별누적머지횟수는일삼칠십오로증가한다() {
+        #expect(BoardItemKind.wheat.requiredMergeCount == 0)
+        #expect(BoardItemKind.flour.requiredMergeCount == 1)
+        #expect(BoardItemKind.dough.requiredMergeCount == 3)
+        #expect(BoardItemKind.noodle.requiredMergeCount == 7)
+        #expect(BoardItemKind.riceCake.requiredMergeCount == 15)
+        #expect(BoardItemKind.grainSack.requiredMergeCount == nil)
+    }
+
+    @Test
+    func 납품코인은누적머지횟수의두배이며최저삼코인이다() {
+        #expect(BoardItemKind.wheat.deliveryCoinReward == nil)
+        #expect(BoardItemKind.flour.deliveryCoinReward == 3)
+        #expect(BoardItemKind.dough.deliveryCoinReward == 6)
+        #expect(BoardItemKind.noodle.deliveryCoinReward == 14)
+        #expect(BoardItemKind.riceCake.deliveryCoinReward == 30)
+        #expect(BoardItemKind.grainSack.deliveryCoinReward == nil)
+    }
 }
