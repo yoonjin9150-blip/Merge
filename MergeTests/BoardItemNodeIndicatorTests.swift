@@ -64,6 +64,36 @@ struct BoardItemNodeIndicatorTests {
         )
     }
 
+    @Test
+    func 빈냄비에반죽을넣으면고정되고조리후다시이동할수있다() {
+        let pot = makeNode(kind: .cookingPot)
+
+        #expect(pot.cookingPotState == .empty)
+        #expect(pot.isDraggable)
+        #expect(pot.loadCookingIngredient(.dough))
+        #expect(pot.cookingPotState == .loaded(.dough))
+        #expect(!pot.isDraggable)
+        #expect(pot.beginCooking())
+        #expect(pot.cookingPotState == .cooking(.dough))
+        #expect(pot.isCooking)
+
+        pot.finishCooking()
+
+        #expect(pot.cookingPotState == .empty)
+        #expect(pot.isDraggable)
+        #expect(!pot.isCooking)
+    }
+
+    @Test
+    func 조리전에는냄비에서반죽을다시꺼낼수있다() {
+        let pot = makeNode(kind: .cookingPot)
+
+        #expect(pot.loadCookingIngredient(.dough))
+        #expect(pot.removeCookingIngredient() == .dough)
+        #expect(pot.cookingPotState == .empty)
+        #expect(pot.removeCookingIngredient() == nil)
+    }
+
     private func makeNode(kind: BoardItemKind) -> BoardItemNode {
         let node = BoardItemNode(
             kind: kind,

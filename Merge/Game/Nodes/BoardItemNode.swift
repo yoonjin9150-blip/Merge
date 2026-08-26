@@ -7,15 +7,47 @@
 
 import SpriteKit
 
+enum CookingPotState: Equatable {
+    case empty
+    case loaded(BoardItemKind)
+    case cooking(BoardItemKind)
+
+    var ingredientKind: BoardItemKind? {
+        switch self {
+        case .empty:
+            return nil
+        case let .loaded(kind), let .cooking(kind):
+            return kind
+        }
+    }
+}
+
 final class BoardItemNode: SKNode {
     let kind: BoardItemKind
     var cell: BoardCell
+    private(set) var cookingPotState: CookingPotState = .empty
+    private var configuredCellSize: CGFloat = 0
+    private var itemVisual: SKSpriteNode?
+    private var loadedIngredientVisual: SKNode?
     private var selectionIndicator: SKShapeNode?
     private var orderCheckIndicator: SKNode?
 
     // 생성기에서 목표 칸으로 이동하는 연출이 끝나기 전까지 true입니다.
     // BoardState에서는 이미 목표 칸을 점유하지만, 화면에서는 숨겨 두고 조작하지 않습니다.
     var isAwaitingSpawnArrival = false
+
+    // 빈 냄비는 일반 아이템처럼 옮길 수 있지만 재료가 들어갔거나 조리 중인 냄비는 고정합니다.
+    var isDraggable: Bool {
+        !kind.isCookingTool || cookingPotState == .empty
+    }
+
+    var isCooking: Bool {
+        if case .cooking = cookingPotState {
+            return true
+        }
+
+        return false
+    }
 
     var isSelected = false {
         didSet {
@@ -46,6 +78,7 @@ final class BoardItemNode: SKNode {
     }
 
     func configureAppearance(cellSize: CGFloat) {
+        configuredCellSize = cellSize
         configureItemVisual(cellSize: cellSize)
         name = "boardItem"
 
@@ -71,14 +104,26 @@ final class BoardItemNode: SKNode {
     static func makeVisualNode(
         for kind: BoardItemKind,
         cellSize: CGFloat
-    ) -> SKNode {
-        let texture = SKTexture(imageNamed: kind.textureName)
+    ) -> SKSpriteNode {
+        makeVisualNode(
+            textureName: kind.textureName,
+            visualScale: kind.visualScale,
+            cellSize: cellSize
+        )
+    }
+
+    private static func makeVisualNode(
+        textureName: String,
+        visualScale: Double,
+        cellSize: CGFloat
+    ) -> SKSpriteNode {
+        let texture = SKTexture(imageNamed: textureName)
 
         // 픽셀 이미지가 확대·축소될 때 경계가 흐려지지 않도록 가장 가까운 픽셀을 사용합니다.
         texture.filteringMode = .nearest
 
         let sprite = SKSpriteNode(texture: texture)
-        let sideLength = cellSize * CGFloat(kind.visualScale)
+        let sideLength = cellSize * CGFloat(visualScale)
         sprite.size = CGSize(width: sideLength, height: sideLength)
         sprite.name = "itemVisual"
         return sprite
@@ -87,8 +132,99 @@ final class BoardItemNode: SKNode {
     private func configureItemVisual(cellSize: CGFloat) {
         // BoardItemNode 자체는 터치와 위치를 관리하는 컨테이너 역할만 합니다.
         // 실제 그림은 자식 노드로 두어 터치 영역과 픽셀 이미지 표시를 분리합니다.
-        let visualNode = Self.makeVisualNode(for: kind, cellSize: cellSize)
+        let visualNode: SKSpriteNode
+
+        if kind.isCookingTool {
+            visualNode = Self.makeVisualNode(
+                textureName: "CookingPotOpenPixel",
+                visualScale: kind.visualScale,
+                cellSize: cellSize
+            )
+        } else {
+            visualNode = Self.makeVisualNode(for: kind, cellSize: cellSize)
+        }
+
         addChild(visualNode)
+        itemVisual = visualNode
+    }
+
+    @discardableResult
+    func loadCookingIngredient(_ ingredientKind: BoardItemKind) -> Bool {
+        guard kind.isCookingTool,
+              cookingPotState == .empty else {
+            return false
+        }
+
+        cookingPotState = .loaded(ingredientKind)
+        updateCookingPotAppearance()
+        return true
+    }
+
+    func removeCookingIngredient() -> BoardItemKind? {
+        guard kind.isCookingTool,
+              case let .loaded(ingredientKind) = cookingPotState else {
+            return nil
+        }
+
+        cookingPotState = .empty
+        updateCookingPotAppearance()
+        return ingredientKind
+    }
+
+    @discardableResult
+    func beginCooking() -> Bool {
+        guard case let .loaded(ingredientKind) = cookingPotState else {
+            return false
+        }
+
+        cookingPotState = .cooking(ingredientKind)
+        updateCookingPotAppearance()
+        return true
+    }
+
+    func finishCooking() {
+        guard case .cooking = cookingPotState else {
+            return
+        }
+
+        cookingPotState = .empty
+        updateCookingPotAppearance()
+    }
+
+    private func updateCookingPotAppearance() {
+        guard kind.isCookingTool, configuredCellSize > 0 else {
+            return
+        }
+
+        let textureName: String
+
+        switch cookingPotState {
+        case .empty, .loaded:
+            textureName = "CookingPotOpenPixel"
+        case .cooking:
+            textureName = "CookingPotPixel"
+        }
+
+        let texture = SKTexture(imageNamed: textureName)
+        texture.filteringMode = .nearest
+        itemVisual?.texture = texture
+
+        loadedIngredientVisual?.removeFromParent()
+        loadedIngredientVisual = nil
+
+        guard case let .loaded(ingredientKind) = cookingPotState else {
+            return
+        }
+
+        // 열린 냄비 안에 들어간 재료를 작게 겹쳐 보여 주어 현재 내용물을 바로 알 수 있게 합니다.
+        let ingredientVisual = Self.makeVisualNode(
+            for: ingredientKind,
+            cellSize: configuredCellSize * 0.46
+        )
+        ingredientVisual.position = CGPoint(x: 0, y: configuredCellSize * 0.10)
+        ingredientVisual.zPosition = 0.5
+        addChild(ingredientVisual)
+        loadedIngredientVisual = ingredientVisual
     }
 
     private func makeSelectionIndicator(cellSize: CGFloat) -> SKShapeNode {
