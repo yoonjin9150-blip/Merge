@@ -26,6 +26,12 @@ enum BoardItemKind: Hashable {
     case gochujang
     case seasoningSauce
     case sujebi
+    case kalguksu
+    case ramyeon
+    case tteokbokki
+    case hotteok
+    case tteokKkochi
+    case gireumTteokbokki
 
     // 각 보드 아이템과 연결된 Assets.xcassets의 픽셀 이미지 이름입니다.
     // 새 아이템을 추가할 때는 먼저 전용 픽셀 에셋을 준비한 뒤 이곳에 연결합니다.
@@ -57,6 +63,18 @@ enum BoardItemKind: Hashable {
             return "SeasoningSaucePixel"
         case .sujebi:
             return "SujebiPixel"
+        case .kalguksu:
+            return "KalguksuPixel"
+        case .ramyeon:
+            return "RamyeonPixel"
+        case .tteokbokki:
+            return "TteokbokkiPixel"
+        case .hotteok:
+            return "HotteokPixel"
+        case .tteokKkochi:
+            return "TteokKkochiPixel"
+        case .gireumTteokbokki:
+            return "GireumTteokbokkiPixel"
         }
     }
 
@@ -84,7 +102,8 @@ enum BoardItemKind: Hashable {
             return 0.94
         case .chiliPowder, .gochujang, .seasoningSauce:
             return 0.92
-        case .sujebi:
+        case .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
+             .tteokKkochi, .gireumTteokbokki:
             return 0.94
         }
     }
@@ -93,7 +112,9 @@ enum BoardItemKind: Hashable {
     // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {
         switch self {
-        case .grainSack, .jangdokdae, .cookingPot, .seasoningSauce, .sujebi:
+        case .grainSack, .jangdokdae, .cookingPot, .seasoningSauce,
+             .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
+             .tteokKkochi, .gireumTteokbokki:
             return nil
         case .wheat:
             return .flour
@@ -123,7 +144,9 @@ enum BoardItemKind: Hashable {
         case .jangdokdae:
             return .chiliPepper
         case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake,
-             .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce, .sujebi:
+             .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce,
+             .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
+             .tteokKkochi, .gireumTteokbokki:
             return nil
         }
     }
@@ -136,7 +159,8 @@ enum BoardItemKind: Hashable {
             return .generator
         case .cookingPot:
             return .cookingTool
-        case .sujebi:
+        case .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
+             .tteokKkochi, .gireumTteokbokki:
             return .dish
         case .wheat, .flour, .dough, .noodle, .riceCake,
              .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce:
@@ -166,7 +190,9 @@ enum BoardItemKind: Hashable {
         case .riceCake, .seasoningSauce:
             return true
         case .grainSack, .jangdokdae, .cookingPot, .wheat, .flour, .dough,
-             .noodle, .chiliPepper, .chiliPowder, .gochujang, .sujebi:
+             .noodle, .chiliPepper, .chiliPowder, .gochujang,
+             .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
+             .tteokKkochi, .gireumTteokbokki:
             return false
         }
     }
@@ -175,7 +201,9 @@ enum BoardItemKind: Hashable {
     // 2단계부터 1, 3, 7, 15로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
     var requiredMergeCount: Int? {
         switch self {
-        case .grainSack, .jangdokdae, .cookingPot, .sujebi:
+        case .grainSack, .jangdokdae, .cookingPot,
+             .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
+             .tteokKkochi, .gireumTteokbokki:
             return nil
         case .wheat:
             return 0

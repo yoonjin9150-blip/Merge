@@ -77,11 +77,26 @@ struct BoardItemKindTests {
     }
 
     @Test
-    func 수제비는머지재료가아닌완성음식으로분류된다() {
-        #expect(BoardItemKind.sujebi.role == .dish)
-        #expect(BoardItemKind.sujebi.isDish)
-        #expect(!BoardItemKind.sujebi.isCookingTool)
-        #expect(!BoardItemKind.sujebi.isMaximumMergeLevel)
+    func 완성음식은머지재료가아닌음식으로분류된다() {
+        let dishes: [BoardItemKind] = [
+            .sujebi,
+            .kalguksu,
+            .ramyeon,
+            .tteokbokki,
+            .hotteok,
+            .tteokKkochi,
+            .gireumTteokbokki
+        ]
+
+        for dish in dishes {
+            #expect(dish.role == .dish)
+            #expect(dish.isDish)
+            #expect(!dish.isCookingTool)
+            #expect(!dish.isMaximumMergeLevel)
+            #expect(dish.nextKind == nil)
+            #expect(dish.spawnedItemKind == nil)
+            #expect(dish.requiredMergeCount == nil)
+        }
     }
 
     @Test
@@ -115,7 +130,13 @@ struct BoardItemKindTests {
             (.chiliPowder, "ChiliPowderPixel"),
             (.gochujang, "GochujangPixel"),
             (.seasoningSauce, "SeasoningSaucePixel"),
-            (.sujebi, "SujebiPixel")
+            (.sujebi, "SujebiPixel"),
+            (.kalguksu, "KalguksuPixel"),
+            (.ramyeon, "RamyeonPixel"),
+            (.tteokbokki, "TteokbokkiPixel"),
+            (.hotteok, "HotteokPixel"),
+            (.tteokKkochi, "TteokKkochiPixel"),
+            (.gireumTteokbokki, "GireumTteokbokkiPixel")
         ]
 
         for (kind, expectedTextureName) in expectedTextures {
