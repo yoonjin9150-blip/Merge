@@ -52,6 +52,19 @@ struct MergeBoardScenePermanentItemTests {
         #expect(!scene.placePermanentItemIfPossible(.jangdokdae))
     }
 
+    @Test
+    func 구매한후라이팬은한번만배치되고조리도구로복원된다() {
+        let scene = makeScene()
+        var latestCounts: [BoardItemKind: Int] = [:]
+        scene.onBoardItemCountsChanged = { latestCounts = $0 }
+        scene.didMove(to: SKView())
+
+        #expect(scene.canPlacePermanentItem(.fryingPan))
+        #expect(scene.placePermanentItemIfPossible(.fryingPan))
+        #expect(latestCounts[.fryingPan] == 1)
+        #expect(!scene.placePermanentItemIfPossible(.fryingPan))
+    }
+
     private func makeScene() -> MergeBoardScene {
         let scene = MergeBoardScene(size: CGSize(width: 390, height: 620))
         scene.scaleMode = .resizeFill

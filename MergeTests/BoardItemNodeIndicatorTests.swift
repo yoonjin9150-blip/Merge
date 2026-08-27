@@ -91,18 +91,18 @@ struct BoardItemNodeIndicatorTests {
     func 빈냄비에반죽을넣으면고정되고조리후다시이동할수있다() {
         let pot = makeNode(kind: .cookingPot)
 
-        #expect(pot.cookingPotState == .empty)
+        #expect(pot.cookingToolState == .empty)
         #expect(pot.isDraggable)
         #expect(pot.loadCookingIngredient(.dough))
-        #expect(pot.cookingPotState == .loaded(.dough))
+        #expect(pot.cookingToolState == .loaded([.dough]))
         #expect(!pot.isDraggable)
-        #expect(pot.beginCooking())
-        #expect(pot.cookingPotState == .cooking(.dough))
+        #expect(pot.beginCooking() == .sujebi)
+        #expect(pot.cookingToolState == .cooking(.sujebi))
         #expect(pot.isCooking)
 
         pot.finishCooking()
 
-        #expect(pot.cookingPotState == .empty)
+        #expect(pot.cookingToolState == .empty)
         #expect(pot.isDraggable)
         #expect(!pot.isCooking)
     }
@@ -113,8 +113,28 @@ struct BoardItemNodeIndicatorTests {
 
         #expect(pot.loadCookingIngredient(.dough))
         #expect(pot.removeCookingIngredient() == .dough)
-        #expect(pot.cookingPotState == .empty)
+        #expect(pot.cookingToolState == .empty)
         #expect(pot.removeCookingIngredient() == nil)
+    }
+
+    @Test
+    func 냄비에는레시피가될수있는재료만두개까지넣을수있다() {
+        let pot = makeNode(kind: .cookingPot)
+
+        #expect(pot.loadCookingIngredient(.seasoningSauce))
+        #expect(!pot.loadCookingIngredient(.dough))
+        #expect(pot.loadCookingIngredient(.noodle))
+        #expect(pot.cookingToolState == .loaded([.seasoningSauce, .noodle]))
+        #expect(pot.beginCooking() == .ramyeon)
+    }
+
+    @Test
+    func 후라이팬은냄비레시피재료조합을받지않는다() {
+        let fryingPan = makeNode(kind: .fryingPan)
+
+        #expect(!fryingPan.loadCookingIngredient(.noodle))
+        #expect(fryingPan.loadCookingIngredient(.dough))
+        #expect(fryingPan.beginCooking() == .hotteok)
     }
 
     private func makeNode(

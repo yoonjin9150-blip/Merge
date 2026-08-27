@@ -34,6 +34,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.grainSack.nextKind == nil)
         #expect(BoardItemKind.jangdokdae.nextKind == nil)
         #expect(BoardItemKind.cookingPot.nextKind == nil)
+        #expect(BoardItemKind.fryingPan.nextKind == nil)
         #expect(BoardItemKind.sujebi.nextKind == nil)
     }
 
@@ -42,6 +43,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.grainSack.spawnedItemKind == .wheat)
         #expect(BoardItemKind.jangdokdae.spawnedItemKind == .chiliPepper)
         #expect(BoardItemKind.cookingPot.spawnedItemKind == nil)
+        #expect(BoardItemKind.fryingPan.spawnedItemKind == nil)
         #expect(BoardItemKind.wheat.spawnedItemKind == nil)
         #expect(BoardItemKind.flour.spawnedItemKind == nil)
         #expect(BoardItemKind.dough.spawnedItemKind == nil)
@@ -64,14 +66,17 @@ struct BoardItemKindTests {
         #expect(!BoardItemKind.noodle.isGenerator)
         #expect(!BoardItemKind.riceCake.isGenerator)
         #expect(!BoardItemKind.cookingPot.isGenerator)
+        #expect(!BoardItemKind.fryingPan.isGenerator)
         #expect(!BoardItemKind.sujebi.isGenerator)
         #expect(!BoardItemKind.chiliPepper.isGenerator)
     }
 
     @Test
-    func 냄비는재료나생성기가아닌조리도구로분류된다() {
+    func 냄비와후라이팬은재료나생성기가아닌조리도구로분류된다() {
         #expect(BoardItemKind.cookingPot.role == .cookingTool)
+        #expect(BoardItemKind.fryingPan.role == .cookingTool)
         #expect(BoardItemKind.cookingPot.isCookingTool)
+        #expect(BoardItemKind.fryingPan.isCookingTool)
         #expect(!BoardItemKind.grainSack.isCookingTool)
         #expect(!BoardItemKind.wheat.isCookingTool)
     }
@@ -109,6 +114,7 @@ struct BoardItemKindTests {
         #expect(!BoardItemKind.dough.isMaximumMergeLevel)
         #expect(!BoardItemKind.noodle.isMaximumMergeLevel)
         #expect(!BoardItemKind.cookingPot.isMaximumMergeLevel)
+        #expect(!BoardItemKind.fryingPan.isMaximumMergeLevel)
         #expect(!BoardItemKind.jangdokdae.isMaximumMergeLevel)
         #expect(!BoardItemKind.chiliPepper.isMaximumMergeLevel)
         #expect(!BoardItemKind.chiliPowder.isMaximumMergeLevel)
@@ -121,6 +127,7 @@ struct BoardItemKindTests {
             (.grainSack, "GrainSackPixel"),
             (.jangdokdae, "JangdokdaePixel"),
             (.cookingPot, "CookingPotPixel"),
+            (.fryingPan, "FryingPanPixel"),
             (.wheat, "WheatPixel"),
             (.flour, "FlourPixel"),
             (.dough, "DoughPixel"),
@@ -156,6 +163,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.riceCake.requiredMergeCount == 15)
         #expect(BoardItemKind.grainSack.requiredMergeCount == nil)
         #expect(BoardItemKind.cookingPot.requiredMergeCount == nil)
+        #expect(BoardItemKind.fryingPan.requiredMergeCount == nil)
         #expect(BoardItemKind.sujebi.requiredMergeCount == nil)
         #expect(BoardItemKind.jangdokdae.requiredMergeCount == nil)
         #expect(BoardItemKind.chiliPepper.requiredMergeCount == 0)
@@ -173,6 +181,7 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.riceCake.deliveryCoinReward == 30)
         #expect(BoardItemKind.grainSack.deliveryCoinReward == nil)
         #expect(BoardItemKind.cookingPot.deliveryCoinReward == nil)
+        #expect(BoardItemKind.fryingPan.deliveryCoinReward == nil)
         #expect(BoardItemKind.sujebi.deliveryCoinReward == nil)
         #expect(BoardItemKind.jangdokdae.deliveryCoinReward == nil)
         #expect(BoardItemKind.chiliPepper.deliveryCoinReward == nil)

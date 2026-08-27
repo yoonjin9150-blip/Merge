@@ -32,6 +32,12 @@ struct ShopStoreTests {
     }
 
     @Test
+    func 후라이팬상품은육십코인이며후라이팬보드아이템과연결된다() {
+        #expect(ShopProduct.fryingPan.price == 60)
+        #expect(ShopProduct.fryingPan.boardItemKind == .fryingPan)
+    }
+
+    @Test
     func 구매한냄비는앱을다시실행해도복원된다() {
         let suiteName = "ShopStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -62,5 +68,21 @@ struct ShopStoreTests {
         let restoredStore = ShopStore(defaults: defaults)
         #expect(restoredStore.isPurchased(.jangdokdae))
         #expect(!restoredStore.markPurchased(.jangdokdae))
+    }
+
+    @Test
+    func 구매한후라이팬은앱을다시실행해도복원된다() {
+        let suiteName = "ShopStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let firstStore = ShopStore(defaults: defaults)
+        #expect(firstStore.markPurchased(.fryingPan))
+
+        let restoredStore = ShopStore(defaults: defaults)
+        #expect(restoredStore.isPurchased(.fryingPan))
+        #expect(!restoredStore.markPurchased(.fryingPan))
     }
 }

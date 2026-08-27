@@ -80,7 +80,7 @@ struct GameOrderTests {
 
     @Test
     func 수제비주문은반죽과냄비를안내하고구코인을보상한다() {
-        let order = GameOrderTemplate.sujebi.makeOrder()
+        let order = GameOrderTemplate.cooking(.sujebi).makeOrder()
 
         #expect(order.templateID == "sujebi-order")
         #expect(order.requestedItem == OrderItemRequirement(itemKind: .sujebi, quantity: 1))
@@ -91,6 +91,20 @@ struct GameOrderTests {
         #expect(order.coinReward == 9)
         #expect(order.relevantItemKinds == Set([.sujebi, .dough]))
         #expect(!order.relevantItemKinds.contains(.cookingPot))
+    }
+
+    @Test
+    func 모든조리레시피는완성음식재료도구보상을주문에전달한다() {
+        for recipe in CookingRecipe.allCases {
+            let order = GameOrderTemplate.cooking(recipe).makeOrder()
+
+            #expect(order.templateID == recipe.orderTemplateID)
+            #expect(order.title == recipe.title)
+            #expect(order.requestedItem.itemKind == recipe.resultKind)
+            #expect(order.recipeIngredients.map(\.itemKind) == recipe.ingredientKinds)
+            #expect(order.requiredToolKind == recipe.toolKind)
+            #expect(order.coinReward == recipe.coinReward)
+        }
     }
 
     @Test
