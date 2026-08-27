@@ -43,7 +43,7 @@ struct ContentView: View {
     // 주문 카드의 체크와 완료 버튼 상태를 계산하는 데 사용합니다.
     @State private var boardItemCounts: [BoardItemKind: Int] = [:]
     @State private var deliveryEffects: [OrderDeliveryEffect] = []
-    @State private var cookingPotSelection: CookingPotSelectionState?
+    @State private var cookingToolSelection: CookingToolSelectionState?
 
     // SpriteKit 게임판입니다. 화면 크기에 맞춰 장면의 크기도 바뀝니다.
     @State private var boardScene: MergeBoardScene = {
@@ -125,15 +125,15 @@ struct ContentView: View {
                     options: [.allowsTransparency]
                 )
 
-                // 재료가 들어 있는 냄비를 선택했을 때만 조리 제어판을 표시합니다.
-                if let cookingPotSelection {
+                // 재료가 들어 있는 조리도구를 선택했을 때만 조리 제어판을 표시합니다.
+                if let cookingToolSelection {
                     CookingControlView(
-                        state: cookingPotSelection,
+                        state: cookingToolSelection,
                         onRemoveIngredient: {
-                            boardScene.removeIngredientFromSelectedPot()
+                            boardScene.removeIngredientFromSelectedTool()
                         },
                         onCook: {
-                            boardScene.cookSelectedPot()
+                            boardScene.cookSelectedTool()
                         }
                     )
                     .frame(height: 76)
@@ -161,8 +161,8 @@ struct ContentView: View {
             boardScene.onBoardItemCountsChanged = { counts in
                 boardItemCounts = counts
             }
-            boardScene.onCookingPotSelectionChanged = { state in
-                cookingPotSelection = state
+            boardScene.onCookingToolSelectionChanged = { state in
+                cookingToolSelection = state
             }
             synchronizePurchasedBoardItems(shopStore.purchasedProducts)
             energyStore.refresh()
@@ -287,10 +287,11 @@ struct ContentView: View {
             .filter(purchasedProducts.contains)
             .map(\.boardItemKind)
 
-        // 냄비를 얻은 뒤에만 완성할 수 있는 수제비 주문을 주문 풀에 추가합니다.
+        // 실제 재료를 만들 수 있는 생성기와 조리도구를 모두 보유했을 때만 해당 주문을 해금합니다.
         // unlock은 중복 호출되어도 같은 주문 종류를 두 번 추가하지 않습니다.
-        if purchasedProducts.contains(.cookingPot) {
-            orderStore.unlock(.sujebi)
+        for recipe in CookingRecipe.allCases
+        where recipe.isUnlocked(by: purchasedProducts) {
+            orderStore.unlock(.cooking(recipe))
         }
     }
 

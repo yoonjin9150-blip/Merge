@@ -7,17 +7,19 @@
 
 import SpriteKit
 
-enum CookingPotState: Equatable {
+enum CookingToolState: Equatable {
     case empty
-    case loaded(BoardItemKind)
-    case cooking(BoardItemKind)
+    case loaded([BoardItemKind])
+    case cooking(CookingRecipe)
 
-    var ingredientKind: BoardItemKind? {
+    var ingredientKinds: [BoardItemKind] {
         switch self {
         case .empty:
-            return nil
-        case let .loaded(kind), let .cooking(kind):
-            return kind
+            return []
+        case let .loaded(kinds):
+            return kinds
+        case let .cooking(recipe):
+            return recipe.ingredientKinds
         }
     }
 }
@@ -26,7 +28,7 @@ final class BoardItemNode: SKNode {
     let kind: BoardItemKind
     var cell: BoardCell
     let isLocked: Bool
-    private(set) var cookingPotState: CookingPotState = .empty
+    private(set) var cookingToolState: CookingToolState = .empty
     private var configuredCellSize: CGFloat = 0
     private var itemVisual: SKSpriteNode?
     private var loadedIngredientVisual: SKNode?
@@ -38,13 +40,13 @@ final class BoardItemNode: SKNode {
     var isAwaitingSpawnArrival = false
 
     // 잠긴 아이템은 직접 움직일 수 없습니다.
-    // 빈 냄비는 일반 아이템처럼 옮길 수 있지만 재료가 들어갔거나 조리 중인 냄비는 고정합니다.
+    // 빈 조리도구는 일반 아이템처럼 옮길 수 있지만 재료가 들어갔거나 조리 중이면 고정합니다.
     var isDraggable: Bool {
-        !isLocked && (!kind.isCookingTool || cookingPotState == .empty)
+        !isLocked && (!kind.isCookingTool || cookingToolState == .empty)
     }
 
     var isCooking: Bool {
-        if case .cooking = cookingPotState {
+        if case .cooking = cookingToolState {
             return true
         }
 
@@ -144,7 +146,7 @@ final class BoardItemNode: SKNode {
 
         if kind.isCookingTool {
             visualNode = Self.makeVisualNode(
-                textureName: "CookingPotOpenPixel",
+                textureName: kind.textureNameForIdleCookingTool,
                 visualScale: kind.visualScale,
                 cellSize: cellSize
             )
@@ -174,59 +176,84 @@ final class BoardItemNode: SKNode {
 
     @discardableResult
     func loadCookingIngredient(_ ingredientKind: BoardItemKind) -> Bool {
-        guard kind.isCookingTool,
-              cookingPotState == .empty else {
+        guard kind.isCookingTool else {
             return false
         }
 
-        cookingPotState = .loaded(ingredientKind)
-        updateCookingPotAppearance()
+        let currentIngredientKinds: [BoardItemKind]
+
+        switch cookingToolState {
+        case .empty:
+            currentIngredientKinds = []
+        case let .loaded(ingredientKinds):
+            currentIngredientKinds = ingredientKinds
+        case .cooking:
+            return false
+        }
+
+        guard CookingRecipe.canAdd(
+            ingredientKind,
+            to: currentIngredientKinds,
+            in: kind
+        ) else {
+            return false
+        }
+
+        cookingToolState = .loaded(currentIngredientKinds + [ingredientKind])
+        updateCookingToolAppearance()
         return true
     }
 
     func removeCookingIngredient() -> BoardItemKind? {
         guard kind.isCookingTool,
-              case let .loaded(ingredientKind) = cookingPotState else {
+              case var .loaded(ingredientKinds) = cookingToolState,
+              let removedIngredientKind = ingredientKinds.popLast() else {
             return nil
         }
 
-        cookingPotState = .empty
-        updateCookingPotAppearance()
-        return ingredientKind
+        cookingToolState = ingredientKinds.isEmpty
+            ? .empty
+            : .loaded(ingredientKinds)
+        updateCookingToolAppearance()
+        return removedIngredientKind
     }
 
     @discardableResult
-    func beginCooking() -> Bool {
-        guard case let .loaded(ingredientKind) = cookingPotState else {
-            return false
+    func beginCooking() -> CookingRecipe? {
+        guard case let .loaded(ingredientKinds) = cookingToolState,
+              let recipe = CookingRecipe.matching(
+                toolKind: kind,
+                ingredientKinds: ingredientKinds
+              ) else {
+            return nil
         }
 
-        cookingPotState = .cooking(ingredientKind)
-        updateCookingPotAppearance()
-        return true
+        cookingToolState = .cooking(recipe)
+        updateCookingToolAppearance()
+        return recipe
     }
 
     func finishCooking() {
-        guard case .cooking = cookingPotState else {
+        guard case .cooking = cookingToolState else {
             return
         }
 
-        cookingPotState = .empty
-        updateCookingPotAppearance()
+        cookingToolState = .empty
+        updateCookingToolAppearance()
     }
 
-    private func updateCookingPotAppearance() {
+    private func updateCookingToolAppearance() {
         guard kind.isCookingTool, configuredCellSize > 0 else {
             return
         }
 
         let textureName: String
 
-        switch cookingPotState {
+        switch cookingToolState {
         case .empty, .loaded:
-            textureName = "CookingPotOpenPixel"
+            textureName = kind.textureNameForIdleCookingTool
         case .cooking:
-            textureName = "CookingPotPixel"
+            textureName = kind.textureName
         }
 
         let texture = SKTexture(imageNamed: textureName)
@@ -236,19 +263,31 @@ final class BoardItemNode: SKNode {
         loadedIngredientVisual?.removeFromParent()
         loadedIngredientVisual = nil
 
-        guard case let .loaded(ingredientKind) = cookingPotState else {
+        guard case let .loaded(ingredientKinds) = cookingToolState else {
             return
         }
 
-        // 열린 냄비 안에 들어간 재료를 작게 겹쳐 보여 주어 현재 내용물을 바로 알 수 있게 합니다.
-        let ingredientVisual = Self.makeVisualNode(
-            for: ingredientKind,
-            cellSize: configuredCellSize * 0.46
-        )
-        ingredientVisual.position = CGPoint(x: 0, y: configuredCellSize * 0.10)
-        ingredientVisual.zPosition = 0.5
-        addChild(ingredientVisual)
-        loadedIngredientVisual = ingredientVisual
+        // 조리도구 안에 들어간 재료를 최대 두 개까지 나란히 겹쳐 현재 내용물을 보여 줍니다.
+        let container = SKNode()
+        let horizontalOffset = configuredCellSize * 0.13
+
+        for (index, ingredientKind) in ingredientKinds.enumerated() {
+            let ingredientVisual = Self.makeVisualNode(
+                for: ingredientKind,
+                cellSize: configuredCellSize * (ingredientKinds.count == 1 ? 0.46 : 0.34)
+            )
+            ingredientVisual.position = CGPoint(
+                x: ingredientKinds.count == 1
+                    ? 0
+                    : (index == 0 ? -horizontalOffset : horizontalOffset),
+                y: configuredCellSize * 0.10
+            )
+            container.addChild(ingredientVisual)
+        }
+
+        container.zPosition = 0.5
+        addChild(container)
+        loadedIngredientVisual = container
     }
 
     private func makeSelectionIndicator(cellSize: CGFloat) -> SKShapeNode {

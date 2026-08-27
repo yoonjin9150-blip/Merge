@@ -11,7 +11,44 @@ struct BoardCellSnapshot: Codable, Equatable {
     let cell: BoardCell
     let state: BoardCellState
     let itemKind: BoardItemKind?
+    // 이전 버전의 냄비 한 칸 저장값을 계속 읽기 위한 호환 필드입니다.
     let loadedCookingIngredientKind: BoardItemKind?
+    // 두 재료 레시피도 투입 순서까지 그대로 복원하기 위한 현재 저장값입니다.
+    let loadedCookingIngredientKinds: [BoardItemKind]?
+
+    var cookingIngredientKinds: [BoardItemKind] {
+        if let loadedCookingIngredientKinds {
+            return loadedCookingIngredientKinds
+        }
+
+        return loadedCookingIngredientKind.map { [$0] } ?? []
+    }
+
+    init(
+        cell: BoardCell,
+        state: BoardCellState,
+        itemKind: BoardItemKind?,
+        loadedCookingIngredientKind: BoardItemKind?
+    ) {
+        self.cell = cell
+        self.state = state
+        self.itemKind = itemKind
+        self.loadedCookingIngredientKind = loadedCookingIngredientKind
+        loadedCookingIngredientKinds = loadedCookingIngredientKind.map { [$0] } ?? []
+    }
+
+    init(
+        cell: BoardCell,
+        state: BoardCellState,
+        itemKind: BoardItemKind?,
+        loadedCookingIngredientKinds: [BoardItemKind]
+    ) {
+        self.cell = cell
+        self.state = state
+        self.itemKind = itemKind
+        loadedCookingIngredientKind = loadedCookingIngredientKinds.first
+        self.loadedCookingIngredientKinds = loadedCookingIngredientKinds
+    }
 }
 
 struct BoardProgressSnapshot: Codable, Equatable {

@@ -144,7 +144,7 @@ enum GrainDeliveryOrder: CaseIterable, Hashable {
 // 곡물 납품 주문과 완성 음식 주문을 같은 풀에서 중복 없이 관리합니다.
 enum GameOrderTemplate: Hashable {
     case grainDelivery(GrainDeliveryOrder)
-    case sujebi
+    case cooking(CookingRecipe)
 
     static var initiallyUnlocked: [GameOrderTemplate] {
         GrainDeliveryOrder.allCases.map(GameOrderTemplate.grainDelivery)
@@ -154,8 +154,8 @@ enum GameOrderTemplate: Hashable {
         switch self {
         case let .grainDelivery(order):
             return order.templateID
-        case .sujebi:
-            return "sujebi-order"
+        case let .cooking(recipe):
+            return recipe.orderTemplateID
         }
     }
 
@@ -163,17 +163,20 @@ enum GameOrderTemplate: Hashable {
         switch self {
         case let .grainDelivery(order):
             return order.makeOrder(id: id)
-        case .sujebi:
+        case let .cooking(recipe):
             return GameOrder(
                 id: id,
                 templateID: templateID,
-                title: "수제비",
-                requestedItem: OrderItemRequirement(itemKind: .sujebi, quantity: 1),
-                recipeIngredients: [
-                    OrderItemRequirement(itemKind: .dough, quantity: 1)
-                ],
-                requiredToolKind: .cookingPot,
-                coinReward: 9
+                title: recipe.title,
+                requestedItem: OrderItemRequirement(
+                    itemKind: recipe.resultKind,
+                    quantity: 1
+                ),
+                recipeIngredients: recipe.ingredientKinds.map {
+                    OrderItemRequirement(itemKind: $0, quantity: 1)
+                },
+                requiredToolKind: recipe.toolKind,
+                coinReward: recipe.coinReward
             )
         }
     }
