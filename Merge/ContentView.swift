@@ -195,10 +195,12 @@ struct ContentView: View {
         .sheet(isPresented: $isShopPresented) {
             ShopView(
                 coins: orderStore.coins,
-                isCookingPotPurchased: shopStore.isPurchased(.cookingPot),
-                canPlaceCookingPot: boardScene.canPlacePermanentItem(.cookingPot),
-                onPurchaseCookingPot: {
-                    purchase(.cookingPot)
+                purchasedProducts: shopStore.purchasedProducts,
+                canPlaceProduct: { product in
+                    boardScene.canPlacePermanentItem(product.boardItemKind)
+                },
+                onPurchase: { product in
+                    purchase(product)
                 }
             )
             .presentationDetents([.large])

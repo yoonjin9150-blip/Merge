@@ -30,15 +30,15 @@ enum MergeNote: Equatable {
     // 머지 횟수가 아니라 새로 만들어진 결과 아이템의 단계를 음계에 연결합니다.
     static func note(for resultKind: BoardItemKind) -> MergeNote? {
         switch resultKind {
-        case .flour:
+        case .flour, .chiliPowder:
             return .doNote
-        case .dough:
+        case .dough, .gochujang:
             return .reNote
-        case .noodle:
+        case .noodle, .seasoningSauce:
             return .miNote
         case .riceCake:
             return .faNote
-        case .grainSack, .cookingPot, .wheat, .sujebi:
+        case .grainSack, .jangdokdae, .cookingPot, .wheat, .chiliPepper, .sujebi:
             return nil
         }
     }
