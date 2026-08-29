@@ -45,6 +45,12 @@ final class BoardState {
             .map(\.value)
     }
 
+    // 잠긴 아이템은 보드의 한 칸을 차지하지만 주문 납품이나 조리에는 사용할 수 없습니다.
+    // 실제로 소비할 수 있는 아이템이 필요할 때는 이 함수를 사용합니다.
+    func unlockedItems(of kind: BoardItemKind) -> [BoardItemNode] {
+        items(of: kind).filter { !$0.isLocked }
+    }
+
     func add(_ item: BoardItemNode, at cell: BoardCell) {
         precondition(contains(cell), "보드 범위를 벗어난 칸에는 아이템을 추가할 수 없습니다.")
         precondition(itemsByCell[cell] == nil, "이미 아이템이 있는 칸에는 새 아이템을 추가할 수 없습니다.")

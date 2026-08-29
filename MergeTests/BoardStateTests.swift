@@ -114,4 +114,27 @@ struct BoardStateTests {
         #expect(flourItems[1] === topRightItem)
         #expect(flourItems[2] === bottomItem)
     }
+
+    @Test
+    func 사용가능아이템조회에서는잠긴아이템을제외한다() {
+        let boardState = BoardState(columns: 7, rows: 9)
+        let lockedCell = BoardCell(column: 0, row: 0)
+        let unlockedCell = BoardCell(column: 1, row: 0)
+        let lockedWheat = BoardItemNode(
+            kind: .wheat,
+            cell: lockedCell,
+            isLocked: true
+        )
+        let unlockedWheat = BoardItemNode(
+            kind: .wheat,
+            cell: unlockedCell
+        )
+
+        boardState.add(lockedWheat, at: lockedCell)
+        boardState.add(unlockedWheat, at: unlockedCell)
+
+        #expect(boardState.items(of: .wheat).count == 2)
+        #expect(boardState.unlockedItems(of: .wheat).count == 1)
+        #expect(boardState.unlockedItems(of: .wheat).first === unlockedWheat)
+    }
 }

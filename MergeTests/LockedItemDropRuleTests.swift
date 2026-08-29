@@ -8,6 +8,7 @@
 import Testing
 @testable import Merge
 
+@MainActor
 struct LockedItemDropRuleTests {
     @Test
     func 같은단계밀을잠긴밀에놓으면밀가루로머지한다() {

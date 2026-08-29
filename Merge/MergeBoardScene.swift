@@ -719,7 +719,7 @@ final class MergeBoardScene: SKScene {
         var counts: [BoardItemKind: Int] = [:]
 
         for item in boardState.itemsByCell.values
-        where !item.isAwaitingSpawnArrival && !item.isHidden {
+        where !item.isLocked && !item.isAwaitingSpawnArrival && !item.isHidden {
             counts[item.kind, default: 0] += 1
         }
 
@@ -729,7 +729,8 @@ final class MergeBoardScene: SKScene {
 
     private func refreshOrderCheckIndicators() {
         for item in boardState.itemsByCell.values {
-            item.showsOrderCheck = activeOrderItemKinds.contains(item.kind)
+            item.showsOrderCheck = !item.isLocked
+                && activeOrderItemKinds.contains(item.kind)
         }
     }
 
@@ -896,7 +897,7 @@ final class MergeBoardScene: SKScene {
             return nil
         }
 
-        let availableItems = boardState.items(of: requirement.itemKind)
+        let availableItems = boardState.unlockedItems(of: requirement.itemKind)
             .filter { !$0.isAwaitingSpawnArrival && !$0.isHidden }
 
         guard availableItems.count >= requirement.quantity else {
