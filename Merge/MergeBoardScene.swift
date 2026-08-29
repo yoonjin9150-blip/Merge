@@ -610,6 +610,36 @@ final class MergeBoardScene: SKScene {
             )
         }
 
+        // 잠긴 아이템은 일반 머지·조리·위치 교체보다 먼저 판정합니다.
+        // 같은 종류·같은 레벨이면 잠금 해제와 머지를 한 번에 처리하고,
+        // 조건이 맞지 않으면 두 아이템을 바꾸지 않고 드래그한 아이템만 원래 칸으로 돌립니다.
+        if targetItem.isLocked {
+            switch LockedItemDropRule.result(
+                draggedKind: draggedItem.kind,
+                lockedKind: targetItem.kind
+            ) {
+            case let .merge(nextKind):
+                let mergedItem = mergeItems(
+                    draggedItem,
+                    with: targetItem,
+                    from: startCell,
+                    at: targetCell,
+                    into: nextKind
+                )
+                return DropResolution(
+                    itemToSelect: mergedItem,
+                    shouldPlayMergeFeedback: true
+                )
+
+            case .reject:
+                draggedItem.position = positionForCell(startCell)
+                return DropResolution(
+                    itemToSelect: draggedItem,
+                    shouldPlayMergeFeedback: false
+                )
+            }
+        }
+
         // 반죽을 열린 빈 냄비에 놓으면 반죽 노드를 제거하고 냄비의 내용물 상태로 옮깁니다.
         // 다른 재료이거나 이미 내용물이 있는 냄비라면 두 아이템을 교체하지 않고 원래 칸으로 돌립니다.
         if targetItem.kind.isCookingTool {
