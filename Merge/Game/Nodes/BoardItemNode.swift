@@ -157,39 +157,19 @@ final class BoardItemNode: SKNode {
     }
 
     private func applyLockedAppearance(cellSize: CGFloat) {
-        // 잠긴 재료는 원래 픽셀 그림을 그대로 보여 주되 어둡게 처리합니다.
-        // 플레이어는 어떤 재료를 가져와야 하는지 미리 알아볼 수 있습니다.
-        itemVisual?.color = SKColor(
-            red: 0.18,
-            green: 0.16,
-            blue: 0.22,
-            alpha: 1
-        )
-        itemVisual?.colorBlendFactor = 0.62
-        itemVisual?.alpha = 0.78
+        // 아이템 자체의 기존 픽셀 에셋은 그대로 두고, 공통 바위 에셋만 앞쪽에 겹칩니다.
+        // 따라서 밀뿐 아니라 다른 종류의 잠긴 아이템에도 같은 바위를 재사용할 수 있습니다.
+        let texture = SKTexture(imageNamed: "LockedRockOverlayPixel")
+        texture.filteringMode = .nearest
 
-        // 별도의 상자 장애물이 아니라, 현재 칸의 재료가 잠겨 있다는 것을 나타내는 얇은 받침입니다.
-        let backdropSide = cellSize * 0.82
-        let backdrop = SKShapeNode(
-            rectOf: CGSize(width: backdropSide, height: backdropSide),
-            cornerRadius: cellSize * 0.04
-        )
-        backdrop.fillColor = SKColor(
-            red: 0.34,
-            green: 0.28,
-            blue: 0.32,
-            alpha: 0.34
-        )
-        backdrop.strokeColor = SKColor(
-            red: 0.20,
-            green: 0.16,
-            blue: 0.22,
-            alpha: 0.55
-        )
-        backdrop.lineWidth = max(1, cellSize * 0.025)
-        backdrop.zPosition = -1
-        backdrop.name = "lockedItemIndicator"
-        addChild(backdrop)
+        let rockOverlay = SKSpriteNode(texture: texture)
+        let sideLength = cellSize * 0.98
+        rockOverlay.size = CGSize(width: sideLength, height: sideLength)
+        // 바위가 아이템의 아래 약 1/3을 덮도록 셀 중심보다 살짝 아래에 둡니다.
+        rockOverlay.position = CGPoint(x: 0, y: -cellSize * 0.02)
+        rockOverlay.zPosition = 1.5
+        rockOverlay.name = "lockedItemIndicator"
+        addChild(rockOverlay)
     }
 
     @discardableResult

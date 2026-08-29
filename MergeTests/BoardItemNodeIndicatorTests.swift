@@ -65,14 +65,15 @@ struct BoardItemNodeIndicatorTests {
     }
 
     @Test
-    func 잠긴재료는어두운표시가생기고드래그할수없다() {
+    func 잠긴재료는바위표시가생기고드래그할수없다() {
         let lockedWheat = makeNode(kind: .wheat, isLocked: true)
+        let lockedIndicator = lockedWheat.childNode(
+            withName: "lockedItemIndicator"
+        )
 
         #expect(lockedWheat.isLocked)
         #expect(!lockedWheat.isDraggable)
-        #expect(
-            lockedWheat.childNode(withName: "lockedItemIndicator") != nil
-        )
+        #expect(lockedIndicator is SKSpriteNode)
     }
 
     @Test
