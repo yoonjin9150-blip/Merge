@@ -845,10 +845,12 @@ final class MergeBoardScene: SKScene {
         let revealedCells = boardState.revealSealedNeighbors(of: clearedCell)
 
         for cell in revealedCells {
-            sealedCoverNodesByCell.removeValue(forKey: cell)?.removeFromParent()
+            // 상태와 새 잠금 아이템은 즉시 등록하되, 벽돌 덮개는 부서지는 연출이 끝난 뒤 제거합니다.
+            let sealedCover = sealedCoverNodesByCell.removeValue(forKey: cell)
 
             guard let kind = expansionLayout.lockedItemKind(at: cell) else {
                 assertionFailure("공개된 바위 칸에 표시할 아이템 종류가 없습니다.")
+                sealedCover?.removeFromParent()
                 continue
             }
 
@@ -858,6 +860,16 @@ final class MergeBoardScene: SKScene {
                 row: cell.row,
                 isLocked: true
             )
+
+            if let sealedCover {
+                // 새 아이템보다 앞에서 벽이 깨지며 서서히 뒤쪽 내용물이 드러나게 합니다.
+                sealedCover.zPosition = 3
+                sealedCellWallRenderer.animateBreaking(
+                    sealedCover,
+                    cellSize: cellSize,
+                    completion: {}
+                )
+            }
         }
     }
 

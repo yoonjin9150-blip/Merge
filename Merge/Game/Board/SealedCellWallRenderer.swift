@@ -8,6 +8,18 @@
 import SpriteKit
 
 final class SealedCellWallRenderer {
+    private enum NodeName {
+        static let mortar = "sealedWallMortar"
+        static let brick = "sealedWallBrick"
+        static let crack = "sealedWallCrack"
+    }
+
+    private enum BreakAnimation {
+        static let shakeStepDuration: TimeInterval = 0.025
+        static let fragmentDuration: TimeInterval = 0.24
+        static let totalDuration: TimeInterval = 0.36
+    }
+
     private let mortarColor = SKColor(red: 0.24, green: 0.17, blue: 0.19, alpha: 1)
     private let brickColors = [
         SKColor(red: 0.56, green: 0.35, blue: 0.27, alpha: 1),
@@ -26,6 +38,7 @@ final class SealedCellWallRenderer {
             color: mortarColor,
             size: CGSize(width: cellSize + 2, height: cellSize + 2)
         )
+        mortarBackground.name = NodeName.mortar
         mortarBackground.zPosition = -0.2
         cover.addChild(mortarBackground)
 
@@ -78,6 +91,70 @@ final class SealedCellWallRenderer {
         return cover
     }
 
+    func animateBreaking(
+        _ cover: SKNode,
+        cellSize: CGFloat,
+        completion: @escaping () -> Void
+    ) {
+        // 먼저 벽 전체가 짧게 흔들린 뒤 벽돌마다 서로 다른 방향으로 떨어집니다.
+        let shake = SKAction.sequence([
+            .moveBy(x: -2, y: 0, duration: BreakAnimation.shakeStepDuration),
+            .moveBy(x: 4, y: 0, duration: BreakAnimation.shakeStepDuration),
+            .moveBy(x: -2, y: 0, duration: BreakAnimation.shakeStepDuration)
+        ])
+        cover.run(shake)
+
+        cover.childNode(withName: NodeName.mortar)?.run(.sequence([
+            .wait(forDuration: BreakAnimation.shakeStepDuration * 2),
+            .fadeOut(withDuration: 0.10)
+        ]))
+
+        let bricks = cover.children.filter { $0.name == NodeName.brick }
+        for (index, brick) in bricks.enumerated() {
+            let horizontalDirection: CGFloat
+            if abs(brick.position.x) > 1 {
+                horizontalDirection = brick.position.x < 0 ? -1 : 1
+            } else {
+                horizontalDirection = index.isMultiple(of: 2) ? -1 : 1
+            }
+
+            let delay = (BreakAnimation.shakeStepDuration * 3)
+                + (TimeInterval(index % 3) * 0.018)
+            let move = SKAction.moveBy(
+                x: horizontalDirection * cellSize * (0.13 + CGFloat(index % 2) * 0.05),
+                y: -cellSize * (0.16 + CGFloat(index % 3) * 0.04),
+                duration: BreakAnimation.fragmentDuration
+            )
+            move.timingMode = .easeIn
+
+            let rotation = SKAction.rotate(
+                byAngle: horizontalDirection * (0.10 + CGFloat(index % 2) * 0.08),
+                duration: BreakAnimation.fragmentDuration
+            )
+            let fade = SKAction.fadeOut(withDuration: BreakAnimation.fragmentDuration)
+            let shrink = SKAction.scale(to: 0.76, duration: BreakAnimation.fragmentDuration)
+
+            brick.run(.sequence([
+                .wait(forDuration: delay),
+                .group([move, rotation, fade, shrink])
+            ]))
+        }
+
+        for crack in cover.children where crack.name == NodeName.crack {
+            crack.run(.fadeOut(withDuration: 0.12))
+        }
+
+        addDust(to: cover, cellSize: cellSize)
+
+        cover.run(.sequence([
+            .wait(forDuration: BreakAnimation.totalDuration),
+            .run { [weak cover] in
+                cover?.removeFromParent()
+                completion()
+            }
+        ]))
+    }
+
     private func addBrick(
         to cover: SKNode,
         cell: BoardCell,
@@ -91,6 +168,7 @@ final class SealedCellWallRenderer {
         ) % brickColors.count
 
         let brick = SKSpriteNode(color: brickColors[colorIndex], size: size)
+        brick.name = NodeName.brick
         brick.position = position
         brick.zPosition = 0
 
@@ -124,6 +202,7 @@ final class SealedCellWallRenderer {
         }
 
         let crack = SKNode()
+        crack.name = NodeName.crack
         crack.position = CGPoint(
             x: cell.column.isMultiple(of: 2) ? -cellSize * 0.12 : cellSize * 0.14,
             y: cell.row.isMultiple(of: 2) ? cellSize * 0.10 : -cellSize * 0.12
@@ -145,5 +224,45 @@ final class SealedCellWallRenderer {
         crack.addChild(secondPixel)
 
         cover.addChild(crack)
+    }
+
+    private func addDust(to cover: SKNode, cellSize: CGFloat) {
+        for index in 0..<7 {
+            let direction: CGFloat = index.isMultiple(of: 2) ? -1 : 1
+            let dust = SKSpriteNode(
+                color: brickColors[index % brickColors.count],
+                size: CGSize(
+                    width: index.isMultiple(of: 3) ? 4 : 3,
+                    height: index.isMultiple(of: 2) ? 3 : 2
+                )
+            )
+            dust.position = CGPoint(
+                x: CGFloat((index % 3) - 1) * cellSize * 0.14,
+                y: CGFloat(index % 2) * cellSize * 0.08
+            )
+            dust.zPosition = 0.5
+            dust.alpha = 0
+            cover.addChild(dust)
+
+            let delay = (BreakAnimation.shakeStepDuration * 2)
+                + (TimeInterval(index % 3) * 0.015)
+            let appear = SKAction.fadeIn(withDuration: 0.02)
+            let scatter = SKAction.moveBy(
+                x: direction * cellSize * (0.16 + CGFloat(index % 3) * 0.04),
+                y: cellSize * (0.06 + CGFloat(index % 2) * 0.08),
+                duration: 0.20
+            )
+            scatter.timingMode = .easeOut
+
+            dust.run(.sequence([
+                .wait(forDuration: delay),
+                appear,
+                .group([
+                    scatter,
+                    .fadeOut(withDuration: 0.20),
+                    .scale(to: 0.5, duration: 0.20)
+                ])
+            ]))
+        }
     }
 }
