@@ -62,6 +62,9 @@ final class MergeBoardScene: SKScene {
     // 픽셀 프레임과 7×9 격자를 그리는 전용 객체입니다.
     private let boardRenderer = BoardRenderer()
 
+    // 봉인 영역을 반복 바위가 아닌 하나로 이어진 황토 벽돌벽으로 그립니다.
+    private let sealedCellWallRenderer = SealedCellWallRenderer()
+
     // 각 칸의 점유 상태와 아이템 이동·교체를 관리하는 전용 객체입니다.
     private lazy var boardState = BoardState(columns: columns, rows: rows)
 
@@ -285,34 +288,12 @@ final class MergeBoardScene: SKScene {
     }
 
     private func addSealedCover(at cell: BoardCell) {
-        let cover = SKNode()
-        cover.name = "sealedCellCover"
+        let cover = sealedCellWallRenderer.makeCover(
+            for: cell,
+            cellSize: cellSize
+        )
         cover.position = positionForCell(cell)
         cover.zPosition = 0.55
-
-        // 아이템이 전혀 보이지 않는 봉인 영역임을 알 수 있도록 흙빛 바탕을 채웁니다.
-        let ground = SKSpriteNode(
-            color: SKColor(red: 0.48, green: 0.34, blue: 0.27, alpha: 1),
-            size: CGSize(width: cellSize - 3, height: cellSize - 3)
-        )
-        ground.zPosition = -0.1
-        cover.addChild(ground)
-
-        let texture = SKTexture(imageNamed: "LockedRockOverlayPixel")
-        texture.filteringMode = .nearest
-
-        // 같은 바위 에셋을 위아래로 촘촘히 겹쳐 봉인 칸 전체가 막혀 보이게 합니다.
-        let upperRocks = SKSpriteNode(texture: texture)
-        upperRocks.size = CGSize(width: cellSize * 0.96, height: cellSize * 0.96)
-        upperRocks.position = CGPoint(x: 0, y: cellSize * 0.24)
-        upperRocks.zPosition = 0
-        cover.addChild(upperRocks)
-
-        let lowerRocks = SKSpriteNode(texture: texture)
-        lowerRocks.size = CGSize(width: cellSize * 1.04, height: cellSize * 1.04)
-        lowerRocks.position = CGPoint(x: 0, y: -cellSize * 0.16)
-        lowerRocks.zPosition = 0.1
-        cover.addChild(lowerRocks)
 
         boardNode.addChild(cover)
         sealedCoverNodesByCell[cell] = cover
