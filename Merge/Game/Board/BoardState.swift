@@ -12,6 +12,10 @@ final class BoardState {
     // 화면 노드의 위치가 아니라 이 딕셔너리를 기준으로 빈 칸과 점유 칸을 판단합니다.
     private(set) var itemsByCell: [BoardCell: BoardItemNode] = [:]
 
+    // 아이템과 별개로 칸 자체의 봉인·바위·개방 상태를 보관합니다.
+    // 잠금 진행도는 아이템 노드가 사라져도 이 값을 기준으로 판단합니다.
+    private(set) var cellStates: [BoardCell: BoardCellState] = [:]
+
     var itemCount: Int {
         itemsByCell.count
     }
@@ -20,10 +24,56 @@ final class BoardState {
         precondition(columns > 0 && rows > 0, "보드의 행과 열은 1 이상이어야 합니다.")
         self.columns = columns
         self.rows = rows
+        reset(cellState: .open)
     }
 
-    func reset() {
+    func reset(cellState: BoardCellState = .open) {
         itemsByCell.removeAll()
+
+        cellStates.removeAll(keepingCapacity: true)
+        for row in 0..<rows {
+            for column in 0..<columns {
+                cellStates[BoardCell(column: column, row: row)] = cellState
+            }
+        }
+    }
+
+    func cellState(at cell: BoardCell) -> BoardCellState {
+        precondition(contains(cell), "보드 범위를 벗어난 칸의 상태를 확인할 수 없습니다.")
+        return cellStates[cell] ?? .sealed
+    }
+
+    func setCellState(_ state: BoardCellState, at cell: BoardCell) {
+        precondition(contains(cell), "보드 범위를 벗어난 칸의 상태를 바꿀 수 없습니다.")
+
+        if state == .sealed {
+            precondition(itemsByCell[cell] == nil, "아이템이 있는 칸을 바로 봉인할 수 없습니다.")
+        }
+
+        cellStates[cell] = state
+    }
+
+    func orthogonalNeighbors(of cell: BoardCell) -> [BoardCell] {
+        [
+            BoardCell(column: cell.column, row: cell.row - 1),
+            BoardCell(column: cell.column + 1, row: cell.row),
+            BoardCell(column: cell.column, row: cell.row + 1),
+            BoardCell(column: cell.column - 1, row: cell.row)
+        ].filter(contains)
+    }
+
+    // 돌을 제거한 칸의 상하좌우 중 아직 봉인된 칸을 모두 바위 상태로 공개합니다.
+    @discardableResult
+    func revealSealedNeighbors(of cell: BoardCell) -> [BoardCell] {
+        let revealedCells = orthogonalNeighbors(of: cell).filter {
+            cellState(at: $0) == .sealed
+        }
+
+        for revealedCell in revealedCells {
+            setCellState(.rockBlocked, at: revealedCell)
+        }
+
+        return revealedCells
     }
 
     func item(at cell: BoardCell) -> BoardItemNode? {
@@ -54,6 +104,13 @@ final class BoardState {
     func add(_ item: BoardItemNode, at cell: BoardCell) {
         precondition(contains(cell), "보드 범위를 벗어난 칸에는 아이템을 추가할 수 없습니다.")
         precondition(itemsByCell[cell] == nil, "이미 아이템이 있는 칸에는 새 아이템을 추가할 수 없습니다.")
+        precondition(cellState(at: cell) != .sealed, "봉인된 칸에는 아이템을 추가할 수 없습니다.")
+
+        if item.isLocked {
+            precondition(cellState(at: cell) == .rockBlocked, "잠긴 아이템은 바위 칸에만 추가할 수 있습니다.")
+        } else {
+            precondition(cellState(at: cell) == .open, "일반 아이템은 열린 칸에만 추가할 수 있습니다.")
+        }
 
         item.cell = cell
         itemsByCell[cell] = item
@@ -68,6 +125,7 @@ final class BoardState {
         precondition(itemsByCell[startCell] === item, "이동할 아이템이 시작 칸의 상태와 일치하지 않습니다.")
         precondition(contains(targetCell), "보드 범위를 벗어난 칸으로 이동할 수 없습니다.")
         precondition(itemsByCell[targetCell] == nil, "아이템이 있는 칸에는 빈 칸 이동을 실행할 수 없습니다.")
+        precondition(cellState(at: targetCell) == .open, "봉인되거나 바위에 막힌 칸으로 이동할 수 없습니다.")
 
         itemsByCell[startCell] = nil
         itemsByCell[targetCell] = item
@@ -82,6 +140,10 @@ final class BoardState {
     ) {
         precondition(itemsByCell[firstCell] === firstItem, "첫 번째 아이템과 칸의 상태가 일치하지 않습니다.")
         precondition(itemsByCell[secondCell] === secondItem, "두 번째 아이템과 칸의 상태가 일치하지 않습니다.")
+        precondition(
+            cellState(at: firstCell) == .open && cellState(at: secondCell) == .open,
+            "열린 칸의 일반 아이템끼리만 위치를 교체할 수 있습니다."
+        )
 
         itemsByCell[firstCell] = secondItem
         itemsByCell[secondCell] = firstItem
@@ -95,7 +157,8 @@ final class BoardState {
             for column in 0..<columns {
                 let cell = BoardCell(column: column, row: row)
 
-                if itemsByCell[cell] == nil {
+                if cellState(at: cell) == .open,
+                   itemsByCell[cell] == nil {
                     return cell
                 }
             }
