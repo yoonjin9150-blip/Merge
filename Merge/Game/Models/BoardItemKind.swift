@@ -12,7 +12,7 @@ enum BoardItemRole {
     case dish
 }
 
-enum BoardItemKind: Hashable {
+enum BoardItemKind: String, Codable, Hashable {
     case grainSack
     case jangdokdae
     case cookingPot

@@ -145,6 +145,9 @@ final class MergeBoardScene: SKScene {
         }
     }
 
+    // 앱 화면에서는 저장소를 연결하고, 단위 테스트에서는 nil로 두어 테스트끼리 상태를 공유하지 않습니다.
+    var boardProgressStore: BoardProgressStore?
+
     // 보드 아이템 개수가 바뀔 때 SwiftUI 주문 목록에 최신 상태를 전달합니다.
     var onBoardItemCountsChanged: (([BoardItemKind: Int]) -> Void)? {
         didSet {
@@ -216,9 +219,22 @@ final class MergeBoardScene: SKScene {
             columns: columns,
             rows: rows
         )
-        addInitialBoardState()
+        let didRestoreProgress: Bool
+        if let snapshot = boardProgressStore?.load(
+            expectedLayoutVersion: expansionLayout.version
+        ) {
+            didRestoreProgress = restoreBoardProgress(from: snapshot)
+        } else {
+            didRestoreProgress = false
+        }
+
+        if !didRestoreProgress {
+            addInitialBoardState()
+        }
+
         restorePurchasedPermanentItemsIfPossible()
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
     }
 
@@ -302,6 +318,76 @@ final class MergeBoardScene: SKScene {
         sealedCoverNodesByCell[cell] = cover
     }
 
+    private func restoreBoardProgress(from snapshot: BoardProgressSnapshot) -> Bool {
+        guard isValid(snapshot) else {
+            return false
+        }
+
+        // 아이템을 추가하기 전에 모든 칸 상태부터 복원합니다.
+        for cellSnapshot in snapshot.cells {
+            boardState.setCellState(cellSnapshot.state, at: cellSnapshot.cell)
+        }
+
+        for cellSnapshot in snapshot.cells {
+            switch cellSnapshot.state {
+            case .sealed:
+                addSealedCover(at: cellSnapshot.cell)
+
+            case .rockBlocked, .open:
+                guard let itemKind = cellSnapshot.itemKind else {
+                    continue
+                }
+
+                let item = addBoardItem(
+                    itemKind,
+                    column: cellSnapshot.cell.column,
+                    row: cellSnapshot.cell.row,
+                    isLocked: cellSnapshot.state == .rockBlocked
+                )
+
+                if let ingredientKind = cellSnapshot.loadedCookingIngredientKind {
+                    _ = item.loadCookingIngredient(ingredientKind)
+                }
+            }
+        }
+
+        return true
+    }
+
+    private func isValid(_ snapshot: BoardProgressSnapshot) -> Bool {
+        guard snapshot.layoutVersion == expansionLayout.version,
+              snapshot.cells.count == columns * rows,
+              Set(snapshot.cells.map(\.cell)).count == columns * rows,
+              snapshot.cells.allSatisfy({ boardState.contains($0.cell) }) else {
+            return false
+        }
+
+        for cellSnapshot in snapshot.cells {
+            switch cellSnapshot.state {
+            case .sealed:
+                guard cellSnapshot.itemKind == nil,
+                      cellSnapshot.loadedCookingIngredientKind == nil else {
+                    return false
+                }
+
+            case .rockBlocked:
+                guard let itemKind = cellSnapshot.itemKind,
+                      itemKind.nextKind != nil,
+                      cellSnapshot.loadedCookingIngredientKind == nil else {
+                    return false
+                }
+
+            case .open:
+                if cellSnapshot.loadedCookingIngredientKind != nil,
+                   cellSnapshot.itemKind?.isCookingTool != true {
+                    return false
+                }
+            }
+        }
+
+        return true
+    }
+
     // 상점 구매 전에 사용할 수 있는 빈 칸이 있고, 같은 영구 아이템이 아직 없는지 확인합니다.
     func canPlacePermanentItem(_ kind: BoardItemKind) -> Bool {
         (kind.isCookingTool || kind == .jangdokdae)
@@ -325,6 +411,7 @@ final class MergeBoardScene: SKScene {
             row: emptyCell.row
         )
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
@@ -344,6 +431,7 @@ final class MergeBoardScene: SKScene {
         boardState.removeItem(at: item.cell)
         item.removeFromParent()
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
@@ -513,6 +601,7 @@ final class MergeBoardScene: SKScene {
         let targetCell = nearestCell(to: item.position)
         let resolution = resolveDrop(of: item, from: startCell, to: targetCell)
         finishDragging()
+        persistBoardProgress()
 
         if resolution.shouldPlayMergeFeedback {
             playMergeFeedback(on: resolution.itemToSelect)
@@ -588,6 +677,7 @@ final class MergeBoardScene: SKScene {
         )
         spawnedItem.isAwaitingSpawnArrival = true
         spawnedItem.isHidden = true
+        persistBoardProgress()
 
         playSpawnAnimation(
             from: generator.position,
@@ -638,6 +728,7 @@ final class MergeBoardScene: SKScene {
             spawnedItem.isAwaitingSpawnArrival = false
             spawnedItem.isHidden = false
             self.publishBoardItemState()
+            self.persistBoardProgress()
             self.assertBoardItemsMatchStoredCells()
         }
     }
@@ -855,6 +946,7 @@ final class MergeBoardScene: SKScene {
         )
         publishCookingPotSelection()
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
@@ -885,6 +977,7 @@ final class MergeBoardScene: SKScene {
         }
 
         publishCookingPotSelection()
+        persistBoardProgress()
         playCookingAnimation(on: pot, revealing: sujebi)
         return true
     }
@@ -964,6 +1057,7 @@ final class MergeBoardScene: SKScene {
             sujebi.isAwaitingSpawnArrival = false
             sujebi.isHidden = false
             self.publishBoardItemState()
+            self.persistBoardProgress()
             self.assertBoardItemsMatchStoredCells()
         }
     }
@@ -1024,8 +1118,51 @@ final class MergeBoardScene: SKScene {
         }
 
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return deliveryItems
+    }
+
+    // 장면의 모든 칸을 정렬된 스냅샷으로 저장합니다.
+    // 조리 중인 재료는 이미 소비되고 완성품 칸이 예약되므로, 조리 전 loaded 상태만 복원 대상으로 남깁니다.
+    func persistBoardProgress() {
+        guard let boardProgressStore else {
+            return
+        }
+
+        var cellSnapshots: [BoardCellSnapshot] = []
+        cellSnapshots.reserveCapacity(columns * rows)
+
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let cell = BoardCell(column: column, row: row)
+                let item = boardState.item(at: cell)
+                let loadedIngredientKind: BoardItemKind?
+
+                if let item,
+                   case let .loaded(ingredientKind) = item.cookingPotState {
+                    loadedIngredientKind = ingredientKind
+                } else {
+                    loadedIngredientKind = nil
+                }
+
+                cellSnapshots.append(
+                    BoardCellSnapshot(
+                        cell: cell,
+                        state: boardState.cellState(at: cell),
+                        itemKind: item?.kind,
+                        loadedCookingIngredientKind: loadedIngredientKind
+                    )
+                )
+            }
+        }
+
+        boardProgressStore.save(
+            BoardProgressSnapshot(
+                layoutVersion: expansionLayout.version,
+                cells: cellSnapshots
+            )
+        )
     }
 
     private func swapItems(

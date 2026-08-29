@@ -48,6 +48,7 @@ struct ContentView: View {
     @State private var boardScene: MergeBoardScene = {
         let scene = MergeBoardScene()
         scene.scaleMode = .resizeFill
+        scene.boardProgressStore = BoardProgressStore()
         return scene
     }()
 
@@ -186,6 +187,7 @@ struct ContentView: View {
                 backgroundMusicPlayer.play()
             } else {
                 // 화면을 벗어난 동안에는 음악을 멈추고 재생 위치는 보존합니다.
+                boardScene.persistBoardProgress()
                 backgroundMusicPlayer.pause()
             }
         }
