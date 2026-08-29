@@ -65,6 +65,28 @@ struct BoardItemNodeIndicatorTests {
     }
 
     @Test
+    func 잠긴재료는어두운표시가생기고드래그할수없다() {
+        let lockedWheat = makeNode(kind: .wheat, isLocked: true)
+
+        #expect(lockedWheat.isLocked)
+        #expect(!lockedWheat.isDraggable)
+        #expect(
+            lockedWheat.childNode(withName: "lockedItemIndicator") != nil
+        )
+    }
+
+    @Test
+    func 일반재료는잠금표시가없고드래그할수있다() {
+        let wheat = makeNode(kind: .wheat)
+
+        #expect(!wheat.isLocked)
+        #expect(wheat.isDraggable)
+        #expect(
+            wheat.childNode(withName: "lockedItemIndicator") == nil
+        )
+    }
+
+    @Test
     func 빈냄비에반죽을넣으면고정되고조리후다시이동할수있다() {
         let pot = makeNode(kind: .cookingPot)
 
@@ -94,10 +116,14 @@ struct BoardItemNodeIndicatorTests {
         #expect(pot.removeCookingIngredient() == nil)
     }
 
-    private func makeNode(kind: BoardItemKind) -> BoardItemNode {
+    private func makeNode(
+        kind: BoardItemKind,
+        isLocked: Bool = false
+    ) -> BoardItemNode {
         let node = BoardItemNode(
             kind: kind,
-            cell: BoardCell(column: 0, row: 0)
+            cell: BoardCell(column: 0, row: 0),
+            isLocked: isLocked
         )
         node.configureAppearance(cellSize: 48)
         return node

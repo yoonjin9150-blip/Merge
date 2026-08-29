@@ -222,6 +222,15 @@ final class MergeBoardScene: SKScene {
             column: 0,
             row: 0
         )
+
+        // 첫 번째 검증에서는 잠긴 밀 하나만 둡니다.
+        // 곡물 포대에서 만든 밀을 이 칸에 놓아 잠금 해제와 한 단계 머지를 함께 확인합니다.
+        addBoardItem(
+            .wheat,
+            column: 1,
+            row: 0,
+            isLocked: true
+        )
     }
 
     // 상점 구매 전에 사용할 수 있는 빈 칸이 있고, 같은 영구 아이템이 아직 없는지 확인합니다.
@@ -287,13 +296,15 @@ final class MergeBoardScene: SKScene {
     private func addBoardItem(
         _ kind: BoardItemKind,
         column: Int,
-        row: Int
+        row: Int,
+        isLocked: Bool = false
     ) -> BoardItemNode {
         let cell = BoardCell(column: column, row: row)
 
         let item = BoardItemNode(
             kind: kind,
-            cell: cell
+            cell: cell,
+            isLocked: isLocked
         )
 
         item.configureAppearance(cellSize: cellSize)
@@ -324,8 +335,9 @@ final class MergeBoardScene: SKScene {
         }
 
 
-        // 조리 중인 냄비는 연출이 끝날 때까지 탭과 드래그를 받지 않습니다.
-        guard !item.isCooking else {
+        // 잠긴 아이템은 목표물로만 사용하며 직접 선택하거나 드래그할 수 없습니다.
+        // 조리 중인 냄비도 연출이 끝날 때까지 탭과 드래그를 받지 않습니다.
+        guard !item.isLocked, !item.isCooking else {
             return
         }
 

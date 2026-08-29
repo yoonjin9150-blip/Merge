@@ -25,6 +25,7 @@ enum CookingPotState: Equatable {
 final class BoardItemNode: SKNode {
     let kind: BoardItemKind
     var cell: BoardCell
+    let isLocked: Bool
     private(set) var cookingPotState: CookingPotState = .empty
     private var configuredCellSize: CGFloat = 0
     private var itemVisual: SKSpriteNode?
@@ -36,9 +37,10 @@ final class BoardItemNode: SKNode {
     // BoardState에서는 이미 목표 칸을 점유하지만, 화면에서는 숨겨 두고 조작하지 않습니다.
     var isAwaitingSpawnArrival = false
 
+    // 잠긴 아이템은 직접 움직일 수 없습니다.
     // 빈 냄비는 일반 아이템처럼 옮길 수 있지만 재료가 들어갔거나 조리 중인 냄비는 고정합니다.
     var isDraggable: Bool {
-        !kind.isCookingTool || cookingPotState == .empty
+        !isLocked && (!kind.isCookingTool || cookingPotState == .empty)
     }
 
     var isCooking: Bool {
@@ -65,10 +67,12 @@ final class BoardItemNode: SKNode {
 
     init(
         kind: BoardItemKind,
-        cell: BoardCell
+        cell: BoardCell,
+        isLocked: Bool = false
     ) {
         self.kind = kind
         self.cell = cell
+        self.isLocked = isLocked
         super.init()
     }
 
@@ -81,6 +85,10 @@ final class BoardItemNode: SKNode {
         configuredCellSize = cellSize
         configureItemVisual(cellSize: cellSize)
         name = "boardItem"
+
+        if isLocked {
+            applyLockedAppearance(cellSize: cellSize)
+        }
 
         let indicator = makeSelectionIndicator(cellSize: cellSize)
         addChild(indicator)
@@ -146,6 +154,42 @@ final class BoardItemNode: SKNode {
 
         addChild(visualNode)
         itemVisual = visualNode
+    }
+
+    private func applyLockedAppearance(cellSize: CGFloat) {
+        // 잠긴 재료는 원래 픽셀 그림을 그대로 보여 주되 어둡게 처리합니다.
+        // 플레이어는 어떤 재료를 가져와야 하는지 미리 알아볼 수 있습니다.
+        itemVisual?.color = SKColor(
+            red: 0.18,
+            green: 0.16,
+            blue: 0.22,
+            alpha: 1
+        )
+        itemVisual?.colorBlendFactor = 0.62
+        itemVisual?.alpha = 0.78
+
+        // 별도의 상자 장애물이 아니라, 현재 칸의 재료가 잠겨 있다는 것을 나타내는 얇은 받침입니다.
+        let backdropSide = cellSize * 0.82
+        let backdrop = SKShapeNode(
+            rectOf: CGSize(width: backdropSide, height: backdropSide),
+            cornerRadius: cellSize * 0.04
+        )
+        backdrop.fillColor = SKColor(
+            red: 0.34,
+            green: 0.28,
+            blue: 0.32,
+            alpha: 0.34
+        )
+        backdrop.strokeColor = SKColor(
+            red: 0.20,
+            green: 0.16,
+            blue: 0.22,
+            alpha: 0.55
+        )
+        backdrop.lineWidth = max(1, cellSize * 0.025)
+        backdrop.zPosition = -1
+        backdrop.name = "lockedItemIndicator"
+        addChild(backdrop)
     }
 
     @discardableResult
