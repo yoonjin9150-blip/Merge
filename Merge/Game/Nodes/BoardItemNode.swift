@@ -25,6 +25,7 @@ enum CookingPotState: Equatable {
 final class BoardItemNode: SKNode {
     let kind: BoardItemKind
     var cell: BoardCell
+    let isLocked: Bool
     private(set) var cookingPotState: CookingPotState = .empty
     private var configuredCellSize: CGFloat = 0
     private var itemVisual: SKSpriteNode?
@@ -36,9 +37,10 @@ final class BoardItemNode: SKNode {
     // BoardState에서는 이미 목표 칸을 점유하지만, 화면에서는 숨겨 두고 조작하지 않습니다.
     var isAwaitingSpawnArrival = false
 
+    // 잠긴 아이템은 직접 움직일 수 없습니다.
     // 빈 냄비는 일반 아이템처럼 옮길 수 있지만 재료가 들어갔거나 조리 중인 냄비는 고정합니다.
     var isDraggable: Bool {
-        !kind.isCookingTool || cookingPotState == .empty
+        !isLocked && (!kind.isCookingTool || cookingPotState == .empty)
     }
 
     var isCooking: Bool {
@@ -65,10 +67,12 @@ final class BoardItemNode: SKNode {
 
     init(
         kind: BoardItemKind,
-        cell: BoardCell
+        cell: BoardCell,
+        isLocked: Bool = false
     ) {
         self.kind = kind
         self.cell = cell
+        self.isLocked = isLocked
         super.init()
     }
 
@@ -81,6 +85,10 @@ final class BoardItemNode: SKNode {
         configuredCellSize = cellSize
         configureItemVisual(cellSize: cellSize)
         name = "boardItem"
+
+        if isLocked {
+            applyLockedAppearance(cellSize: cellSize)
+        }
 
         let indicator = makeSelectionIndicator(cellSize: cellSize)
         addChild(indicator)
@@ -146,6 +154,22 @@ final class BoardItemNode: SKNode {
 
         addChild(visualNode)
         itemVisual = visualNode
+    }
+
+    private func applyLockedAppearance(cellSize: CGFloat) {
+        // 아이템 자체의 기존 픽셀 에셋은 그대로 두고, 공통 바위 에셋만 앞쪽에 겹칩니다.
+        // 따라서 밀뿐 아니라 다른 종류의 잠긴 아이템에도 같은 바위를 재사용할 수 있습니다.
+        let texture = SKTexture(imageNamed: "LockedRockOverlayPixel")
+        texture.filteringMode = .nearest
+
+        let rockOverlay = SKSpriteNode(texture: texture)
+        let sideLength = cellSize * 0.98
+        rockOverlay.size = CGSize(width: sideLength, height: sideLength)
+        // 바위가 아이템의 아래 약 1/3을 덮도록 셀 중심보다 살짝 아래에 둡니다.
+        rockOverlay.position = CGPoint(x: 0, y: -cellSize * 0.02)
+        rockOverlay.zPosition = 1.5
+        rockOverlay.name = "lockedItemIndicator"
+        addChild(rockOverlay)
     }
 
     @discardableResult

@@ -62,8 +62,21 @@ final class MergeBoardScene: SKScene {
     // 픽셀 프레임과 7×9 격자를 그리는 전용 객체입니다.
     private let boardRenderer = BoardRenderer()
 
+    // 봉인 영역을 반복 바위가 아닌 하나로 이어진 황토 벽돌벽으로 그립니다.
+    private let sealedCellWallRenderer = SealedCellWallRenderer()
+
     // 각 칸의 점유 상태와 아이템 이동·교체를 관리하는 전용 객체입니다.
     private lazy var boardState = BoardState(columns: columns, rows: rows)
+
+    // 최초 3×4 개방 영역과 거리별 잠긴 아이템을 가진 테스트용 확장 배치입니다.
+    // 생성기와 머지 트리가 늘어나면 이 데이터만 최종 수동 배치로 교체합니다.
+    private lazy var expansionLayout = BoardExpansionLayout.prototype(
+        columns: columns,
+        rows: rows
+    )
+
+    // 봉인 칸을 가리는 화면 노드입니다. 칸이 공개되면 해당 노드만 제거합니다.
+    private var sealedCoverNodesByCell: [BoardCell: SKNode] = [:]
 
     // 화면 크기에 맞춰 계산되는 실제 한 칸의 크기입니다.
     private var cellSize: CGFloat = 0
@@ -135,6 +148,9 @@ final class MergeBoardScene: SKScene {
         }
     }
 
+    // 앱 화면에서는 저장소를 연결하고, 단위 테스트에서는 nil로 두어 테스트끼리 상태를 공유하지 않습니다.
+    var boardProgressStore: BoardProgressStore?
+
     // 보드 아이템 개수가 바뀔 때 SwiftUI 주문 목록에 최신 상태를 전달합니다.
     var onBoardItemCountsChanged: (([BoardItemKind: Int]) -> Void)? {
         didSet {
@@ -163,7 +179,8 @@ final class MergeBoardScene: SKScene {
     private func buildBoard() {
         // 보드와 최초 아이템을 처음 그립니다.
         boardNode.removeAllChildren()
-        boardState.reset()
+        boardState.reset(cellState: .sealed)
+        sealedCoverNodesByCell.removeAll()
         selectedItem = nil
         draggedItem = nil
         activeTouch = nil
@@ -205,23 +222,151 @@ final class MergeBoardScene: SKScene {
             columns: columns,
             rows: rows
         )
-        addInitialItems()
+        let didRestoreProgress: Bool
+        if let snapshot = boardProgressStore?.load(
+            expectedLayoutVersion: expansionLayout.version
+        ) {
+            didRestoreProgress = restoreBoardProgress(from: snapshot)
+        } else {
+            didRestoreProgress = false
+        }
+
+        if !didRestoreProgress {
+            addInitialBoardState()
+        }
+
         restorePurchasedPermanentItemsIfPossible()
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
     }
 
     // MARK: - Initial Board Items
 
-    private func addInitialItems() {
-        // row 0은 화면에서 가장 위쪽인 1행입니다.
-        // column 0은 왼쪽 첫 번째 칸입니다.
-        // 곡물 포대는 최초 상태에서 좌측 상단 1행 1열 한 칸만 차지합니다.
+    private func addInitialBoardState() {
+        // 전체 보드의 칸 상태를 먼저 정한 뒤, 봉인 덮개와 최초 바위 아이템을 그립니다.
+        // 아이템보다 칸 상태를 먼저 설정해야 BoardState의 추가 조건과 화면이 일치합니다.
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let cell = BoardCell(column: column, row: row)
+                boardState.setCellState(expansionLayout.initialState(at: cell), at: cell)
+            }
+        }
+
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let cell = BoardCell(column: column, row: row)
+
+                switch boardState.cellState(at: cell) {
+                case .sealed:
+                    addSealedCover(at: cell)
+
+                case .rockBlocked:
+                    guard let kind = expansionLayout.lockedItemKind(at: cell) else {
+                        assertionFailure("바위 칸에 표시할 아이템 종류가 없습니다.")
+                        continue
+                    }
+                    addBoardItem(
+                        kind,
+                        column: column,
+                        row: row,
+                        isLocked: true
+                    )
+
+                case .open:
+                    break
+                }
+            }
+        }
+
+        // 곡물 포대는 보드 전체의 모서리가 아니라 최초 개방 영역의 좌측 상단에 놓습니다.
         addBoardItem(
             .grainSack,
-            column: 0,
-            row: 0
+            column: expansionLayout.initialGeneratorCell.column,
+            row: expansionLayout.initialGeneratorCell.row
         )
+    }
+
+    private func addSealedCover(at cell: BoardCell) {
+        let cover = sealedCellWallRenderer.makeCover(
+            for: cell,
+            cellSize: cellSize
+        )
+        cover.position = positionForCell(cell)
+        cover.zPosition = 0.55
+
+        boardNode.addChild(cover)
+        sealedCoverNodesByCell[cell] = cover
+    }
+
+    private func restoreBoardProgress(from snapshot: BoardProgressSnapshot) -> Bool {
+        guard isValid(snapshot) else {
+            return false
+        }
+
+        // 아이템을 추가하기 전에 모든 칸 상태부터 복원합니다.
+        for cellSnapshot in snapshot.cells {
+            boardState.setCellState(cellSnapshot.state, at: cellSnapshot.cell)
+        }
+
+        for cellSnapshot in snapshot.cells {
+            switch cellSnapshot.state {
+            case .sealed:
+                addSealedCover(at: cellSnapshot.cell)
+
+            case .rockBlocked, .open:
+                guard let itemKind = cellSnapshot.itemKind else {
+                    continue
+                }
+
+                let item = addBoardItem(
+                    itemKind,
+                    column: cellSnapshot.cell.column,
+                    row: cellSnapshot.cell.row,
+                    isLocked: cellSnapshot.state == .rockBlocked
+                )
+
+                if let ingredientKind = cellSnapshot.loadedCookingIngredientKind {
+                    _ = item.loadCookingIngredient(ingredientKind)
+                }
+            }
+        }
+
+        return true
+    }
+
+    private func isValid(_ snapshot: BoardProgressSnapshot) -> Bool {
+        guard snapshot.layoutVersion == expansionLayout.version,
+              snapshot.cells.count == columns * rows,
+              Set(snapshot.cells.map(\.cell)).count == columns * rows,
+              snapshot.cells.allSatisfy({ boardState.contains($0.cell) }) else {
+            return false
+        }
+
+        for cellSnapshot in snapshot.cells {
+            switch cellSnapshot.state {
+            case .sealed:
+                guard cellSnapshot.itemKind == nil,
+                      cellSnapshot.loadedCookingIngredientKind == nil else {
+                    return false
+                }
+
+            case .rockBlocked:
+                guard let itemKind = cellSnapshot.itemKind,
+                      itemKind.nextKind != nil,
+                      cellSnapshot.loadedCookingIngredientKind == nil else {
+                    return false
+                }
+
+            case .open:
+                if cellSnapshot.loadedCookingIngredientKind != nil,
+                   cellSnapshot.itemKind?.isCookingTool != true {
+                    return false
+                }
+            }
+        }
+
+        return true
     }
 
     // 상점 구매 전에 사용할 수 있는 빈 칸이 있고, 같은 영구 아이템이 아직 없는지 확인합니다.
@@ -247,6 +392,7 @@ final class MergeBoardScene: SKScene {
             row: emptyCell.row
         )
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
@@ -266,6 +412,7 @@ final class MergeBoardScene: SKScene {
         boardState.removeItem(at: item.cell)
         item.removeFromParent()
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
@@ -287,13 +434,15 @@ final class MergeBoardScene: SKScene {
     private func addBoardItem(
         _ kind: BoardItemKind,
         column: Int,
-        row: Int
+        row: Int,
+        isLocked: Bool = false
     ) -> BoardItemNode {
         let cell = BoardCell(column: column, row: row)
 
         let item = BoardItemNode(
             kind: kind,
-            cell: cell
+            cell: cell,
+            isLocked: isLocked
         )
 
         item.configureAppearance(cellSize: cellSize)
@@ -324,8 +473,9 @@ final class MergeBoardScene: SKScene {
         }
 
 
-        // 조리 중인 냄비는 연출이 끝날 때까지 탭과 드래그를 받지 않습니다.
-        guard !item.isCooking else {
+        // 잠긴 아이템은 목표물로만 사용하며 직접 선택하거나 드래그할 수 없습니다.
+        // 조리 중인 냄비도 연출이 끝날 때까지 탭과 드래그를 받지 않습니다.
+        guard !item.isLocked, !item.isCooking else {
             return
         }
 
@@ -432,6 +582,7 @@ final class MergeBoardScene: SKScene {
         let targetCell = nearestCell(to: item.position)
         let resolution = resolveDrop(of: item, from: startCell, to: targetCell)
         finishDragging()
+        persistBoardProgress()
 
         if resolution.shouldPlayMergeFeedback {
             playMergeFeedback(on: resolution.itemToSelect)
@@ -507,6 +658,7 @@ final class MergeBoardScene: SKScene {
         )
         spawnedItem.isAwaitingSpawnArrival = true
         spawnedItem.isHidden = true
+        persistBoardProgress()
 
         playSpawnAnimation(
             from: generator.position,
@@ -557,6 +709,7 @@ final class MergeBoardScene: SKScene {
             spawnedItem.isAwaitingSpawnArrival = false
             spawnedItem.isHidden = false
             self.publishBoardItemState()
+            self.persistBoardProgress()
             self.assertBoardItemsMatchStoredCells()
         }
     }
@@ -570,6 +723,16 @@ final class MergeBoardScene: SKScene {
     ) -> DropResolution {
         // 시작한 칸에 다시 놓았다면 데이터는 바꾸지 않고 칸 중앙에 정확히 맞춥니다.
         guard targetCell != startCell else {
+            draggedItem.position = positionForCell(startCell)
+            return DropResolution(
+                itemToSelect: draggedItem,
+                shouldPlayMergeFeedback: false
+            )
+        }
+
+        // 아이템이 없는 것처럼 보여도 봉인 칸은 이미 잠금 콘텐츠가 차지한 칸입니다.
+        // 이동·스폰 대상이 아니므로 드래그한 아이템을 원래 위치로 돌립니다.
+        guard boardState.cellState(at: targetCell) != .sealed else {
             draggedItem.position = positionForCell(startCell)
             return DropResolution(
                 itemToSelect: draggedItem,
@@ -596,6 +759,39 @@ final class MergeBoardScene: SKScene {
                 itemToSelect: draggedItem,
                 shouldPlayMergeFeedback: false
             )
+        }
+
+        // 잠긴 아이템은 일반 머지·조리·위치 교체보다 먼저 판정합니다.
+        // 같은 종류·같은 레벨이면 잠금 해제와 머지를 한 번에 처리하고,
+        // 조건이 맞지 않으면 두 아이템을 바꾸지 않고 드래그한 아이템만 원래 칸으로 돌립니다.
+        if targetItem.isLocked {
+            switch LockedItemDropRule.result(
+                draggedKind: draggedItem.kind,
+                lockedKind: targetItem.kind
+            ) {
+            case let .merge(nextKind):
+                // 머지 결과는 일반 아이템이므로 목표 칸을 먼저 열린 상태로 바꿉니다.
+                boardState.setCellState(.open, at: targetCell)
+                let mergedItem = mergeItems(
+                    draggedItem,
+                    with: targetItem,
+                    from: startCell,
+                    at: targetCell,
+                    into: nextKind
+                )
+                revealSealedNeighbors(afterClearing: targetCell)
+                return DropResolution(
+                    itemToSelect: mergedItem,
+                    shouldPlayMergeFeedback: true
+                )
+
+            case .reject:
+                draggedItem.position = positionForCell(startCell)
+                return DropResolution(
+                    itemToSelect: draggedItem,
+                    shouldPlayMergeFeedback: false
+                )
+            }
         }
 
         // 반죽을 열린 빈 냄비에 놓으면 반죽 노드를 제거하고 냄비의 내용물 상태로 옮깁니다.
@@ -645,6 +841,38 @@ final class MergeBoardScene: SKScene {
         )
     }
 
+    private func revealSealedNeighbors(afterClearing clearedCell: BoardCell) {
+        let revealedCells = boardState.revealSealedNeighbors(of: clearedCell)
+
+        for cell in revealedCells {
+            // 상태와 새 잠금 아이템은 즉시 등록하되, 벽돌 덮개는 부서지는 연출이 끝난 뒤 제거합니다.
+            let sealedCover = sealedCoverNodesByCell.removeValue(forKey: cell)
+
+            guard let kind = expansionLayout.lockedItemKind(at: cell) else {
+                assertionFailure("공개된 바위 칸에 표시할 아이템 종류가 없습니다.")
+                sealedCover?.removeFromParent()
+                continue
+            }
+
+            addBoardItem(
+                kind,
+                column: cell.column,
+                row: cell.row,
+                isLocked: true
+            )
+
+            if let sealedCover {
+                // 새 아이템보다 앞에서 벽이 깨지며 서서히 뒤쪽 내용물이 드러나게 합니다.
+                sealedCover.zPosition = 3
+                sealedCellWallRenderer.animateBreaking(
+                    sealedCover,
+                    cellSize: cellSize,
+                    completion: {}
+                )
+            }
+        }
+    }
+
     private func mergeItems(
         _ draggedItem: BoardItemNode,
         with targetItem: BoardItemNode,
@@ -677,7 +905,7 @@ final class MergeBoardScene: SKScene {
         var counts: [BoardItemKind: Int] = [:]
 
         for item in boardState.itemsByCell.values
-        where !item.isAwaitingSpawnArrival && !item.isHidden {
+        where !item.isLocked && !item.isAwaitingSpawnArrival && !item.isHidden {
             counts[item.kind, default: 0] += 1
         }
 
@@ -687,7 +915,8 @@ final class MergeBoardScene: SKScene {
 
     private func refreshOrderCheckIndicators() {
         for item in boardState.itemsByCell.values {
-            item.showsOrderCheck = activeOrderItemKinds.contains(item.kind)
+            item.showsOrderCheck = !item.isLocked
+                && activeOrderItemKinds.contains(item.kind)
         }
     }
 
@@ -710,6 +939,7 @@ final class MergeBoardScene: SKScene {
         )
         publishCookingPotSelection()
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
@@ -740,6 +970,7 @@ final class MergeBoardScene: SKScene {
         }
 
         publishCookingPotSelection()
+        persistBoardProgress()
         playCookingAnimation(on: pot, revealing: sujebi)
         return true
     }
@@ -819,6 +1050,7 @@ final class MergeBoardScene: SKScene {
             sujebi.isAwaitingSpawnArrival = false
             sujebi.isHidden = false
             self.publishBoardItemState()
+            self.persistBoardProgress()
             self.assertBoardItemsMatchStoredCells()
         }
     }
@@ -854,7 +1086,7 @@ final class MergeBoardScene: SKScene {
             return nil
         }
 
-        let availableItems = boardState.items(of: requirement.itemKind)
+        let availableItems = boardState.unlockedItems(of: requirement.itemKind)
             .filter { !$0.isAwaitingSpawnArrival && !$0.isHidden }
 
         guard availableItems.count >= requirement.quantity else {
@@ -879,8 +1111,51 @@ final class MergeBoardScene: SKScene {
         }
 
         publishBoardItemState()
+        persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return deliveryItems
+    }
+
+    // 장면의 모든 칸을 정렬된 스냅샷으로 저장합니다.
+    // 조리 중인 재료는 이미 소비되고 완성품 칸이 예약되므로, 조리 전 loaded 상태만 복원 대상으로 남깁니다.
+    func persistBoardProgress() {
+        guard let boardProgressStore else {
+            return
+        }
+
+        var cellSnapshots: [BoardCellSnapshot] = []
+        cellSnapshots.reserveCapacity(columns * rows)
+
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let cell = BoardCell(column: column, row: row)
+                let item = boardState.item(at: cell)
+                let loadedIngredientKind: BoardItemKind?
+
+                if let item,
+                   case let .loaded(ingredientKind) = item.cookingPotState {
+                    loadedIngredientKind = ingredientKind
+                } else {
+                    loadedIngredientKind = nil
+                }
+
+                cellSnapshots.append(
+                    BoardCellSnapshot(
+                        cell: cell,
+                        state: boardState.cellState(at: cell),
+                        itemKind: item?.kind,
+                        loadedCookingIngredientKind: loadedIngredientKind
+                    )
+                )
+            }
+        }
+
+        boardProgressStore.save(
+            BoardProgressSnapshot(
+                layoutVersion: expansionLayout.version,
+                cells: cellSnapshots
+            )
+        )
     }
 
     private func swapItems(
@@ -1003,6 +1278,24 @@ final class MergeBoardScene: SKScene {
             assert(boardState.contains(cell), "보드 범위를 벗어난 칸에 아이템이 저장되었습니다.")
             assert(item.cell == cell, "BoardState의 칸과 아이템이 기억하는 칸이 다릅니다.")
             assert(item.parent === boardNode, "BoardState에는 아이템이 있지만 화면에는 존재하지 않습니다.")
+            assert(
+                item.isLocked == (boardState.cellState(at: cell) == .rockBlocked),
+                "아이템의 잠금 표시와 칸의 바위 상태가 일치하지 않습니다."
+            )
+        }
+
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let cell = BoardCell(column: column, row: row)
+                let state = boardState.cellState(at: cell)
+
+                if state == .sealed {
+                    assert(boardState.item(at: cell) == nil, "봉인 칸에 아이템이 등록되어 있습니다.")
+                    assert(sealedCoverNodesByCell[cell]?.parent === boardNode, "봉인 칸의 덮개가 없습니다.")
+                } else {
+                    assert(sealedCoverNodesByCell[cell] == nil, "공개된 칸에 봉인 덮개가 남아 있습니다.")
+                }
+            }
         }
 
         assert(boardState.itemCount <= columns * rows, "보드의 전체 칸 수보다 많은 아이템이 저장되었습니다.")

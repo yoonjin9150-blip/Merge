@@ -114,4 +114,71 @@ struct BoardStateTests {
         #expect(flourItems[1] === topRightItem)
         #expect(flourItems[2] === bottomItem)
     }
+
+    @Test
+    func 사용가능아이템조회에서는잠긴아이템을제외한다() {
+        let boardState = BoardState(columns: 7, rows: 9)
+        let lockedCell = BoardCell(column: 0, row: 0)
+        let unlockedCell = BoardCell(column: 1, row: 0)
+        let lockedWheat = BoardItemNode(
+            kind: .wheat,
+            cell: lockedCell,
+            isLocked: true
+        )
+        let unlockedWheat = BoardItemNode(
+            kind: .wheat,
+            cell: unlockedCell
+        )
+
+        boardState.setCellState(.rockBlocked, at: lockedCell)
+        boardState.add(lockedWheat, at: lockedCell)
+        boardState.add(unlockedWheat, at: unlockedCell)
+
+        #expect(boardState.items(of: .wheat).count == 2)
+        #expect(boardState.unlockedItems(of: .wheat).count == 1)
+        #expect(boardState.unlockedItems(of: .wheat).first === unlockedWheat)
+    }
+
+    @Test
+    func 봉인칸과바위칸은빈칸으로계산하지않는다() {
+        let boardState = BoardState(columns: 3, rows: 2)
+        boardState.reset(cellState: .sealed)
+        boardState.setCellState(.rockBlocked, at: BoardCell(column: 0, row: 0))
+        boardState.setCellState(.open, at: BoardCell(column: 1, row: 0))
+
+        #expect(boardState.firstEmptyCell() == BoardCell(column: 1, row: 0))
+    }
+
+    @Test
+    func 돌을제거하면봉인된상하좌우네칸을모두공개한다() {
+        let boardState = BoardState(columns: 3, rows: 3)
+        let center = BoardCell(column: 1, row: 1)
+        boardState.reset(cellState: .sealed)
+        boardState.setCellState(.open, at: center)
+
+        let revealed = Set(boardState.revealSealedNeighbors(of: center))
+
+        #expect(revealed == Set([
+            BoardCell(column: 1, row: 0),
+            BoardCell(column: 2, row: 1),
+            BoardCell(column: 1, row: 2),
+            BoardCell(column: 0, row: 1)
+        ]))
+        #expect(revealed.allSatisfy { boardState.cellState(at: $0) == .rockBlocked })
+    }
+
+    @Test
+    func 보드가장자리에서는범위안의봉인칸만공개한다() {
+        let boardState = BoardState(columns: 3, rows: 3)
+        let corner = BoardCell(column: 0, row: 0)
+        boardState.reset(cellState: .sealed)
+        boardState.setCellState(.open, at: corner)
+
+        let revealed = Set(boardState.revealSealedNeighbors(of: corner))
+
+        #expect(revealed == Set([
+            BoardCell(column: 1, row: 0),
+            BoardCell(column: 0, row: 1)
+        ]))
+    }
 }
