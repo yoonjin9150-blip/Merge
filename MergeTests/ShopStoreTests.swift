@@ -12,6 +12,14 @@ import Testing
 @MainActor
 struct ShopStoreTests {
     @Test
+    func 냄비는첫챕터부터열리고장독대는두번째챕터에서열린다() {
+        #expect(ShopProduct.cookingPot.isUnlocked(in: .relightStove))
+        #expect(!ShopProduct.jangdokdae.isUnlocked(in: .relightStove))
+        #expect(ShopProduct.jangdokdae.isUnlocked(in: .restoreJangFlavor))
+        #expect(ShopProduct.jangdokdae.requiredChapter.shortBadge == "CH.2")
+    }
+
+    @Test
     func 냄비상품은오코인이며냄비보드아이템과연결된다() {
         #expect(ShopProduct.cookingPot.price == 5)
         #expect(ShopProduct.cookingPot.boardItemKind == .cookingPot)

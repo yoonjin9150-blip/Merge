@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ShopView: View {
     let coins: Int
+    let currentChapter: GameChapter
     let purchasedProducts: Set<ShopProduct>
     let canPlaceProduct: (ShopProduct) -> Bool
     let onPurchase: (ShopProduct) -> Bool
@@ -52,16 +53,35 @@ struct ShopView: View {
     }
 
     private func productCard(_ product: ShopProduct) -> some View {
-        VStack(spacing: 10) {
+        let isPurchased = purchasedProducts.contains(product)
+        let isUnlocked = isPurchased || product.isUnlocked(in: currentChapter)
+
+        return VStack(spacing: 10) {
             Image(product.boardItemKind.textureName)
                 .resizable()
                 .interpolation(.none)
                 .scaledToFit()
                 .frame(width: 112, height: 112)
+                .saturation(isUnlocked ? 1 : 0)
+                .opacity(isUnlocked ? 1 : 0.48)
 
-            Text(product.title)
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundStyle(outlineColor)
+            HStack(spacing: 8) {
+                Text(product.title)
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor)
+
+                if !isUnlocked {
+                    Text("🔒 \(product.requiredChapter.shortBadge)")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(outlineColor.opacity(0.72))
+                        .padding(.horizontal, 8)
+                        .frame(height: 24)
+                        .background {
+                            Capsule()
+                                .fill(outlineColor.opacity(0.10))
+                        }
+                }
+            }
 
             Text(product.description)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -90,14 +110,18 @@ struct ShopView: View {
 
     private func purchaseButton(for product: ShopProduct) -> some View {
         let isPurchased = purchasedProducts.contains(product)
+        let isUnlocked = isPurchased || product.isUnlocked(in: currentChapter)
         let canPlace = canPlaceProduct(product)
-        let canPurchase = !isPurchased && coins >= product.price && canPlace
+        let canPurchase = isUnlocked
+            && !isPurchased
+            && coins >= product.price
+            && canPlace
 
         return Button {
             _ = onPurchase(product)
         } label: {
             HStack(spacing: 7) {
-                if !isPurchased {
+                if !isPurchased && isUnlocked {
                     PixelCoinIcon()
                 }
 
@@ -105,6 +129,7 @@ struct ShopView: View {
                     purchaseButtonTitle(
                         for: product,
                         isPurchased: isPurchased,
+                        isUnlocked: isUnlocked,
                         canPlace: canPlace
                     )
                 )
@@ -128,6 +153,7 @@ struct ShopView: View {
             purchaseAccessibilityHint(
                 for: product,
                 isPurchased: isPurchased,
+                isUnlocked: isUnlocked,
                 canPlace: canPlace
             )
         )
@@ -136,10 +162,15 @@ struct ShopView: View {
     private func purchaseButtonTitle(
         for product: ShopProduct,
         isPurchased: Bool,
+        isUnlocked: Bool,
         canPlace: Bool
     ) -> String {
         if isPurchased {
             return "구매 완료"
+        }
+
+        if !isUnlocked {
+            return "🔒 잠김"
         }
 
         if coins < product.price {
@@ -156,10 +187,15 @@ struct ShopView: View {
     private func purchaseAccessibilityHint(
         for product: ShopProduct,
         isPurchased: Bool,
+        isUnlocked: Bool,
         canPlace: Bool
     ) -> String {
         if isPurchased {
             return "이미 영구 구매한 상품입니다."
+        }
+
+        if !isUnlocked {
+            return product.unlockDescription
         }
 
         if coins < product.price {
@@ -177,6 +213,7 @@ struct ShopView: View {
 #Preview {
     ShopView(
         coins: 40,
+        currentChapter: .relightStove,
         purchasedProducts: [.cookingPot],
         canPlaceProduct: { _ in true },
         onPurchase: { _ in true }

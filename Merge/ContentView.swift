@@ -25,6 +25,7 @@ struct ContentView: View {
     @StateObject private var energyStore = EnergyStore()
     @StateObject private var orderStore = OrderStore()
     @StateObject private var shopStore = ShopStore()
+    @StateObject private var gameProgressStore = GameProgressStore()
     @StateObject private var backgroundMusicPlayer = BackgroundMusicPlayer()
     @State private var isShopPresented = false
 
@@ -197,6 +198,7 @@ struct ContentView: View {
         .sheet(isPresented: $isShopPresented) {
             ShopView(
                 coins: orderStore.coins,
+                currentChapter: gameProgressStore.currentChapter,
                 purchasedProducts: shopStore.purchasedProducts,
                 canPlaceProduct: { product in
                     boardScene.canPlacePermanentItem(product.boardItemKind)
@@ -243,6 +245,9 @@ struct ContentView: View {
                 return
             }
 
+            // 첫 수제비 납품을 챕터 1 완료로 기록해 장독대 구매를 해금합니다.
+            gameProgressStore.recordCompletedOrder(order)
+
             // 완료 카드가 사라진 것을 먼저 보여 준 뒤 새 랜덤 주문으로 빈자리를 채웁니다.
             try? await Task.sleep(
                 nanoseconds: OrderCompletionTiming.replenishmentDelayNanoseconds
@@ -252,7 +257,8 @@ struct ContentView: View {
     }
 
     private func purchase(_ product: ShopProduct) -> Bool {
-        guard !shopStore.isPurchased(product) else {
+        guard !shopStore.isPurchased(product),
+              product.isUnlocked(in: gameProgressStore.currentChapter) else {
             return false
         }
 
