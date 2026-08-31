@@ -12,11 +12,26 @@ import Testing
 @MainActor
 struct ShopStoreTests {
     @Test
-    func 냄비는첫챕터부터열리고장독대는두번째챕터에서열린다() {
+    func 냄비는첫챕터부터열리고후라이팬과장독대는두번째챕터에서열린다() {
         #expect(ShopProduct.cookingPot.isUnlocked(in: .relightStove))
+        #expect(!ShopProduct.fryingPan.isUnlocked(in: .relightStove))
         #expect(!ShopProduct.jangdokdae.isUnlocked(in: .relightStove))
+        #expect(ShopProduct.fryingPan.isUnlocked(in: .restoreJangFlavor))
         #expect(ShopProduct.jangdokdae.isUnlocked(in: .restoreJangFlavor))
+        #expect(ShopProduct.fryingPan.requiredChapter.shortBadge == "CH.2")
         #expect(ShopProduct.jangdokdae.requiredChapter.shortBadge == "CH.2")
+    }
+
+    @Test
+    func 상점설명은조작순서보다상품의역할을알려준다() {
+        #expect(
+            ShopProduct.cookingPot.description
+                == "재료를 넣어 다양한 음식을 만드는\n영구 조리도구예요."
+        )
+        #expect(
+            ShopProduct.jangdokdae.description
+                == "에너지를 사용해 고추를 만들어 내는\n영구 생성기예요."
+        )
     }
 
     @Test

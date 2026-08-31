@@ -58,7 +58,7 @@ final class GameProgressStore: ObservableObject {
     @discardableResult
     func recordCompletedOrder(_ order: GameOrder) -> Bool {
         guard currentChapter == .relightStove,
-              order.templateID == GameOrderTemplate.sujebi.templateID else {
+              order.templateID == GameOrderTemplate.cooking(.sujebi).templateID else {
             return false
         }
 
