@@ -13,9 +13,16 @@ struct BoardDeliveryItem {
     let scenePosition: CGPoint
 }
 
-enum CookingPotSelectionState: Equatable {
-    case loaded(BoardItemKind)
-    case cooking
+enum CookingToolSelectionState: Equatable {
+    case loaded(
+        toolKind: BoardItemKind,
+        ingredientKinds: [BoardItemKind],
+        recipe: CookingRecipe?
+    )
+    case cooking(
+        toolKind: BoardItemKind,
+        recipe: CookingRecipe
+    )
 }
 
 final class MergeBoardScene: SKScene {
@@ -158,10 +165,10 @@ final class MergeBoardScene: SKScene {
         }
     }
 
-    // 선택한 냄비의 상태를 SwiftUI 하단 조리 패널에 전달합니다.
-    var onCookingPotSelectionChanged: ((CookingPotSelectionState?) -> Void)? {
+    // 선택한 조리도구의 상태를 SwiftUI 하단 조리 패널에 전달합니다.
+    var onCookingToolSelectionChanged: ((CookingToolSelectionState?) -> Void)? {
         didSet {
-            publishCookingPotSelection()
+            publishCookingToolSelection()
         }
     }
 
@@ -326,7 +333,7 @@ final class MergeBoardScene: SKScene {
                     isLocked: cellSnapshot.state == .rockBlocked
                 )
 
-                if let ingredientKind = cellSnapshot.loadedCookingIngredientKind {
+                for ingredientKind in cellSnapshot.cookingIngredientKinds {
                     _ = item.loadCookingIngredient(ingredientKind)
                 }
             }
@@ -347,19 +354,19 @@ final class MergeBoardScene: SKScene {
             switch cellSnapshot.state {
             case .sealed:
                 guard cellSnapshot.itemKind == nil,
-                      cellSnapshot.loadedCookingIngredientKind == nil else {
+                      cellSnapshot.cookingIngredientKinds.isEmpty else {
                     return false
                 }
 
             case .rockBlocked:
                 guard let itemKind = cellSnapshot.itemKind,
                       itemKind.nextKind != nil,
-                      cellSnapshot.loadedCookingIngredientKind == nil else {
+                      cellSnapshot.cookingIngredientKinds.isEmpty else {
                     return false
                 }
 
             case .open:
-                if cellSnapshot.loadedCookingIngredientKind != nil,
+                if !cellSnapshot.cookingIngredientKinds.isEmpty,
                    cellSnapshot.itemKind?.isCookingTool != true {
                     return false
                 }
@@ -794,11 +801,10 @@ final class MergeBoardScene: SKScene {
             }
         }
 
-        // 반죽을 열린 빈 냄비에 놓으면 반죽 노드를 제거하고 냄비의 내용물 상태로 옮깁니다.
-        // 다른 재료이거나 이미 내용물이 있는 냄비라면 두 아이템을 교체하지 않고 원래 칸으로 돌립니다.
+        // 레시피에 포함될 수 있는 재료를 조리도구에 놓으면 보드 노드를 제거하고 내용물 상태로 옮깁니다.
+        // 어떤 레시피에도 이어질 수 없는 조합이면 아이템을 소비하지 않고 원래 칸으로 돌립니다.
         if targetItem.kind.isCookingTool {
-            guard draggedItem.kind == .dough,
-                  targetItem.loadCookingIngredient(.dough) else {
+            guard targetItem.loadCookingIngredient(draggedItem.kind) else {
                 draggedItem.position = positionForCell(startCell)
                 return DropResolution(
                     itemToSelect: draggedItem,
@@ -922,13 +928,13 @@ final class MergeBoardScene: SKScene {
 
     // MARK: - Cooking
 
-    // 선택한 냄비에서 조리 전 재료를 빼 첫 번째 빈 칸에 되돌립니다.
+    // 선택한 조리도구에서 마지막으로 넣은 재료를 빼 첫 번째 빈 칸에 되돌립니다.
     @discardableResult
-    func removeIngredientFromSelectedPot() -> Bool {
-        guard let pot = selectedItem,
-              pot.kind.isCookingTool,
+    func removeIngredientFromSelectedTool() -> Bool {
+        guard let tool = selectedItem,
+              tool.kind.isCookingTool,
               let emptyCell = boardState.firstEmptyCell(),
-              let ingredientKind = pot.removeCookingIngredient() else {
+              let ingredientKind = tool.removeCookingIngredient() else {
             return false
         }
 
@@ -937,50 +943,54 @@ final class MergeBoardScene: SKScene {
             column: emptyCell.column,
             row: emptyCell.row
         )
-        publishCookingPotSelection()
+        publishCookingToolSelection()
         publishBoardItemState()
         persistBoardProgress()
         assertBoardItemsMatchStoredCells()
         return true
     }
 
-    // 선택한 냄비의 반죽을 소비하고, 빈 칸 하나를 수제비 도착 칸으로 먼저 예약한 뒤 조리를 시작합니다.
+    // 선택한 조리도구의 정확한 레시피를 확인하고, 빈 칸 하나를 완성 음식 도착 칸으로 예약합니다.
     @discardableResult
-    func cookSelectedPot() -> Bool {
-        guard let pot = selectedItem,
-              pot.kind.isCookingTool,
-              pot.cookingPotState == .loaded(.dough),
+    func cookSelectedTool() -> Bool {
+        guard let tool = selectedItem,
+              tool.kind.isCookingTool,
+              case let .loaded(ingredientKinds) = tool.cookingToolState,
+              let recipe = CookingRecipe.matching(
+                toolKind: tool.kind,
+                ingredientKinds: ingredientKinds
+              ),
               let outputCell = boardState.firstEmptyCell() else {
             return false
         }
 
         // 조리 도중 생성기 연속 탭으로 빈 칸을 빼앗기지 않도록 완성품을 숨긴 채 BoardState에 먼저 등록합니다.
-        let sujebi = addBoardItem(
-            .sujebi,
+        let cookedFood = addBoardItem(
+            recipe.resultKind,
             column: outputCell.column,
             row: outputCell.row
         )
-        sujebi.isAwaitingSpawnArrival = true
-        sujebi.isHidden = true
+        cookedFood.isAwaitingSpawnArrival = true
+        cookedFood.isHidden = true
 
-        guard pot.beginCooking() else {
+        guard tool.beginCooking() == recipe else {
             boardState.removeItem(at: outputCell)
-            sujebi.removeFromParent()
+            cookedFood.removeFromParent()
             return false
         }
 
-        publishCookingPotSelection()
+        publishCookingToolSelection()
         persistBoardProgress()
-        playCookingAnimation(on: pot, revealing: sujebi)
+        playCookingAnimation(on: tool, revealing: cookedFood)
         return true
     }
 
     private func playCookingAnimation(
-        on pot: BoardItemNode,
-        revealing sujebi: BoardItemNode
+        on tool: BoardItemNode,
+        revealing cookedFood: BoardItemNode
     ) {
-        let potCenter = positionForCell(pot.cell)
-        let steam = makeSteamEffect(at: potCenter)
+        let toolCenter = positionForCell(tool.cell)
+        let steam = makeSteamEffect(at: toolCenter)
         boardNode.addChild(steam)
 
         let shakeRight = SKAction.moveBy(
@@ -994,41 +1004,44 @@ final class MergeBoardScene: SKScene {
             duration: CookingAnimation.shakeStepDuration * 2
         )
         let returnCenter = SKAction.move(
-            to: potCenter,
+            to: toolCenter,
             duration: CookingAnimation.shakeStepDuration
         )
         let oneShake = SKAction.sequence([shakeRight, shakeLeft, returnCenter])
 
-        pot.run(.repeat(oneShake, count: CookingAnimation.shakeCount)) {
-            [weak self, weak pot, weak sujebi, weak steam] in
+        tool.run(.repeat(oneShake, count: CookingAnimation.shakeCount)) {
+            [weak self, weak tool, weak cookedFood, weak steam] in
             steam?.removeFromParent()
 
             guard let self,
-                  let pot,
-                  let sujebi,
-                  pot.parent === self.boardNode,
-                  sujebi.parent === self.boardNode else {
+                  let tool,
+                  let cookedFood,
+                  tool.parent === self.boardNode,
+                  cookedFood.parent === self.boardNode else {
                 return
             }
 
-            pot.position = potCenter
-            pot.finishCooking()
-            self.publishCookingPotSelection()
-            self.playCookedFoodAnimation(from: pot, revealing: sujebi)
+            tool.position = toolCenter
+            tool.finishCooking()
+            self.publishCookingToolSelection()
+            self.playCookedFoodAnimation(from: tool, revealing: cookedFood)
         }
     }
 
     private func playCookedFoodAnimation(
-        from pot: BoardItemNode,
-        revealing sujebi: BoardItemNode
+        from tool: BoardItemNode,
+        revealing cookedFood: BoardItemNode
     ) {
-        let effectNode = BoardItemNode.makeVisualNode(for: .sujebi, cellSize: cellSize)
-        effectNode.position = pot.position
+        let effectNode = BoardItemNode.makeVisualNode(
+            for: cookedFood.kind,
+            cellSize: cellSize
+        )
+        effectNode.position = tool.position
         effectNode.zPosition = 4
         boardNode.addChild(effectNode)
 
         let move = SKAction.move(
-            to: positionForCell(sujebi.cell),
+            to: positionForCell(cookedFood.cell),
             duration: CookingAnimation.foodTravelDuration
         )
         move.timingMode = .easeOut
@@ -1038,17 +1051,17 @@ final class MergeBoardScene: SKScene {
         ])
 
         effectNode.run(.group([move, pop])) {
-            [weak self, weak effectNode, weak sujebi] in
+            [weak self, weak effectNode, weak cookedFood] in
             effectNode?.removeFromParent()
 
             guard let self,
-                  let sujebi,
-                  sujebi.parent === self.boardNode else {
+                  let cookedFood,
+                  cookedFood.parent === self.boardNode else {
                 return
             }
 
-            sujebi.isAwaitingSpawnArrival = false
-            sujebi.isHidden = false
+            cookedFood.isAwaitingSpawnArrival = false
+            cookedFood.isHidden = false
             self.publishBoardItemState()
             self.persistBoardProgress()
             self.assertBoardItemsMatchStoredCells()
@@ -1130,13 +1143,13 @@ final class MergeBoardScene: SKScene {
             for column in 0..<columns {
                 let cell = BoardCell(column: column, row: row)
                 let item = boardState.item(at: cell)
-                let loadedIngredientKind: BoardItemKind?
+                let loadedIngredientKinds: [BoardItemKind]
 
                 if let item,
-                   case let .loaded(ingredientKind) = item.cookingPotState {
-                    loadedIngredientKind = ingredientKind
+                   case let .loaded(ingredientKinds) = item.cookingToolState {
+                    loadedIngredientKinds = ingredientKinds
                 } else {
-                    loadedIngredientKind = nil
+                    loadedIngredientKinds = []
                 }
 
                 cellSnapshots.append(
@@ -1144,7 +1157,7 @@ final class MergeBoardScene: SKScene {
                         cell: cell,
                         state: boardState.cellState(at: cell),
                         itemKind: item?.kind,
-                        loadedCookingIngredientKind: loadedIngredientKind
+                        loadedCookingIngredientKinds: loadedIngredientKinds
                     )
                 )
             }
@@ -1312,29 +1325,40 @@ final class MergeBoardScene: SKScene {
         clearSelection()
         selectedItem = item
         item.isSelected = true
-        publishCookingPotSelection()
+        publishCookingToolSelection()
     }
 
     private func clearSelection() {
         selectedItem?.isSelected = false
         selectedItem = nil
-        publishCookingPotSelection()
+        publishCookingToolSelection()
     }
 
-    private func publishCookingPotSelection() {
+    private func publishCookingToolSelection() {
         guard let selectedItem,
               selectedItem.kind.isCookingTool else {
-            onCookingPotSelectionChanged?(nil)
+            onCookingToolSelectionChanged?(nil)
             return
         }
 
-        switch selectedItem.cookingPotState {
+        switch selectedItem.cookingToolState {
         case .empty:
-            onCookingPotSelectionChanged?(nil)
-        case let .loaded(ingredientKind):
-            onCookingPotSelectionChanged?(.loaded(ingredientKind))
-        case .cooking:
-            onCookingPotSelectionChanged?(.cooking)
+            onCookingToolSelectionChanged?(nil)
+        case let .loaded(ingredientKinds):
+            onCookingToolSelectionChanged?(
+                .loaded(
+                    toolKind: selectedItem.kind,
+                    ingredientKinds: ingredientKinds,
+                    recipe: CookingRecipe.matching(
+                        toolKind: selectedItem.kind,
+                        ingredientKinds: ingredientKinds
+                    )
+                )
+            )
+        case let .cooking(recipe):
+            onCookingToolSelectionChanged?(
+                .cooking(toolKind: selectedItem.kind, recipe: recipe)
+            )
         }
     }
 

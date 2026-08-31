@@ -16,6 +16,7 @@ enum BoardItemKind: String, Codable, Hashable {
     case grainSack
     case jangdokdae
     case cookingPot
+    case fryingPan
     case wheat
     case flour
     case dough
@@ -43,6 +44,8 @@ enum BoardItemKind: String, Codable, Hashable {
             return "JangdokdaePixel"
         case .cookingPot:
             return "CookingPotPixel"
+        case .fryingPan:
+            return "FryingPanPixel"
         case .wheat:
             return "WheatPixel"
         case .flour:
@@ -78,6 +81,56 @@ enum BoardItemKind: String, Codable, Hashable {
         }
     }
 
+    var displayName: String {
+        switch self {
+        case .grainSack:
+            return "곡물 포대"
+        case .jangdokdae:
+            return "장독대"
+        case .cookingPot:
+            return "냄비"
+        case .fryingPan:
+            return "후라이팬"
+        case .wheat:
+            return "밀"
+        case .flour:
+            return "밀가루"
+        case .dough:
+            return "반죽"
+        case .noodle:
+            return "면"
+        case .riceCake:
+            return "떡"
+        case .chiliPepper:
+            return "고추"
+        case .chiliPowder:
+            return "고춧가루"
+        case .gochujang:
+            return "고추장"
+        case .seasoningSauce:
+            return "양념장"
+        case .sujebi:
+            return "수제비"
+        case .kalguksu:
+            return "칼국수"
+        case .ramyeon:
+            return "라면"
+        case .tteokbokki:
+            return "떡볶이"
+        case .hotteok:
+            return "호떡"
+        case .tteokKkochi:
+            return "떡꼬치"
+        case .gireumTteokbokki:
+            return "기름떡볶이"
+        }
+    }
+
+    // 냄비는 재료를 넣기 전 열린 이미지를 사용하고, 후라이팬은 기본 이미지를 그대로 사용합니다.
+    var textureNameForIdleCookingTool: String {
+        self == .cookingPot ? "CookingPotOpenPixel" : textureName
+    }
+
     // 각 이미지가 한 칸 안에서 차지하는 크기입니다.
     // 에셋마다 투명 여백과 형태가 달라 보드에서 비슷한 크기로 보이도록 따로 조정합니다.
     var visualScale: Double {
@@ -86,7 +139,7 @@ enum BoardItemKind: String, Codable, Hashable {
             return 0.86
         case .jangdokdae:
             return 0.88
-        case .cookingPot:
+        case .cookingPot, .fryingPan:
             return 0.92
         case .wheat:
             return 0.98
@@ -112,7 +165,7 @@ enum BoardItemKind: String, Codable, Hashable {
     // 최종 단계인 떡과 생성기는 다음 단계가 없으므로 nil입니다.
     var nextKind: BoardItemKind? {
         switch self {
-        case .grainSack, .jangdokdae, .cookingPot, .seasoningSauce,
+        case .grainSack, .jangdokdae, .cookingPot, .fryingPan, .seasoningSauce,
              .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
              .tteokKkochi, .gireumTteokbokki:
             return nil
@@ -143,7 +196,7 @@ enum BoardItemKind: String, Codable, Hashable {
             return .wheat
         case .jangdokdae:
             return .chiliPepper
-        case .cookingPot, .wheat, .flour, .dough, .noodle, .riceCake,
+        case .cookingPot, .fryingPan, .wheat, .flour, .dough, .noodle, .riceCake,
              .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce,
              .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
              .tteokKkochi, .gireumTteokbokki:
@@ -157,7 +210,7 @@ enum BoardItemKind: String, Codable, Hashable {
         switch self {
         case .grainSack, .jangdokdae:
             return .generator
-        case .cookingPot:
+        case .cookingPot, .fryingPan:
             return .cookingTool
         case .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
              .tteokKkochi, .gireumTteokbokki:
@@ -189,7 +242,7 @@ enum BoardItemKind: String, Codable, Hashable {
         switch self {
         case .riceCake, .seasoningSauce:
             return true
-        case .grainSack, .jangdokdae, .cookingPot, .wheat, .flour, .dough,
+        case .grainSack, .jangdokdae, .cookingPot, .fryingPan, .wheat, .flour, .dough,
              .noodle, .chiliPepper, .chiliPowder, .gochujang,
              .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
              .tteokKkochi, .gireumTteokbokki:
@@ -201,7 +254,7 @@ enum BoardItemKind: String, Codable, Hashable {
     // 2단계부터 1, 3, 7, 15로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
     var requiredMergeCount: Int? {
         switch self {
-        case .grainSack, .jangdokdae, .cookingPot,
+        case .grainSack, .jangdokdae, .cookingPot, .fryingPan,
              .sujebi, .kalguksu, .ramyeon, .tteokbokki, .hotteok,
              .tteokKkochi, .gireumTteokbokki:
             return nil

@@ -31,7 +31,7 @@ struct GameProgressStoreTests {
     @Test
     func 첫수제비납품은장맛복구챕터를해금한다() {
         let store = GameProgressStore(defaults: makeDefaults())
-        let sujebiOrder = GameOrderTemplate.sujebi.makeOrder()
+        let sujebiOrder = GameOrderTemplate.cooking(.sujebi).makeOrder()
 
         #expect(store.recordCompletedOrder(sujebiOrder))
         #expect(store.currentChapter == .restoreJangFlavor)
@@ -43,7 +43,11 @@ struct GameProgressStoreTests {
         let defaults = makeDefaults()
         let firstStore = GameProgressStore(defaults: defaults)
 
-        #expect(firstStore.recordCompletedOrder(GameOrderTemplate.sujebi.makeOrder()))
+        #expect(
+            firstStore.recordCompletedOrder(
+                GameOrderTemplate.cooking(.sujebi).makeOrder()
+            )
+        )
 
         let restoredStore = GameProgressStore(defaults: defaults)
         #expect(restoredStore.currentChapter == .restoreJangFlavor)

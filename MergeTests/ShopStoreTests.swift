@@ -12,11 +12,26 @@ import Testing
 @MainActor
 struct ShopStoreTests {
     @Test
-    func 냄비는첫챕터부터열리고장독대는두번째챕터에서열린다() {
+    func 냄비는첫챕터부터열리고후라이팬과장독대는두번째챕터에서열린다() {
         #expect(ShopProduct.cookingPot.isUnlocked(in: .relightStove))
+        #expect(!ShopProduct.fryingPan.isUnlocked(in: .relightStove))
         #expect(!ShopProduct.jangdokdae.isUnlocked(in: .relightStove))
+        #expect(ShopProduct.fryingPan.isUnlocked(in: .restoreJangFlavor))
         #expect(ShopProduct.jangdokdae.isUnlocked(in: .restoreJangFlavor))
+        #expect(ShopProduct.fryingPan.requiredChapter.shortBadge == "CH.2")
         #expect(ShopProduct.jangdokdae.requiredChapter.shortBadge == "CH.2")
+    }
+
+    @Test
+    func 상점설명은조작순서보다상품의역할을알려준다() {
+        #expect(
+            ShopProduct.cookingPot.description
+                == "재료를 넣어 다양한 음식을 만드는\n영구 조리도구예요."
+        )
+        #expect(
+            ShopProduct.jangdokdae.description
+                == "에너지를 사용해 고추를 만들어 내는\n영구 생성기예요."
+        )
     }
 
     @Test
@@ -29,6 +44,12 @@ struct ShopStoreTests {
     func 장독대상품은임시삼십코인이며장독대생성기와연결된다() {
         #expect(ShopProduct.jangdokdae.price == 30)
         #expect(ShopProduct.jangdokdae.boardItemKind == .jangdokdae)
+    }
+
+    @Test
+    func 후라이팬상품은육십코인이며후라이팬보드아이템과연결된다() {
+        #expect(ShopProduct.fryingPan.price == 60)
+        #expect(ShopProduct.fryingPan.boardItemKind == .fryingPan)
     }
 
     @Test
@@ -62,5 +83,21 @@ struct ShopStoreTests {
         let restoredStore = ShopStore(defaults: defaults)
         #expect(restoredStore.isPurchased(.jangdokdae))
         #expect(!restoredStore.markPurchased(.jangdokdae))
+    }
+
+    @Test
+    func 구매한후라이팬은앱을다시실행해도복원된다() {
+        let suiteName = "ShopStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let firstStore = ShopStore(defaults: defaults)
+        #expect(firstStore.markPurchased(.fryingPan))
+
+        let restoredStore = ShopStore(defaults: defaults)
+        #expect(restoredStore.isPurchased(.fryingPan))
+        #expect(!restoredStore.markPurchased(.fryingPan))
     }
 }

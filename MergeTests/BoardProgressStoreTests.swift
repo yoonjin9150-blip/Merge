@@ -61,6 +61,30 @@ struct BoardProgressStoreTests {
     }
 
     @Test
+    func 두재료를넣은조리도구도투입순서와함께복원한다() throws {
+        let suiteName = "BoardProgressStoreTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = BoardProgressStore(defaults: defaults)
+        let cellSnapshot = BoardCellSnapshot(
+            cell: BoardCell(column: 0, row: 0),
+            state: .open,
+            itemKind: .cookingPot,
+            loadedCookingIngredientKinds: [.seasoningSauce, .noodle]
+        )
+        store.save(
+            BoardProgressSnapshot(layoutVersion: 3, cells: [cellSnapshot])
+        )
+
+        let restored = try #require(store.load(expectedLayoutVersion: 3))
+        #expect(
+            restored.cells.first?.cookingIngredientKinds
+                == [.seasoningSauce, .noodle]
+        )
+    }
+
+    @Test
     func 돌을깬뒤남은상위아이템을새장면에서복원한다() throws {
         let suiteName = "BoardProgressStoreTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

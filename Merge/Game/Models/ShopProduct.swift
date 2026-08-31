@@ -7,6 +7,7 @@
 
 enum ShopProduct: String, CaseIterable, Identifiable {
     case cookingPot
+    case fryingPan
     case jangdokdae
 
     var id: String { rawValue }
@@ -15,6 +16,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         switch self {
         case .cookingPot:
             return "냄비"
+        case .fryingPan:
+            return "후라이팬"
         case .jangdokdae:
             return "장독대"
         }
@@ -24,6 +27,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         switch self {
         case .cookingPot:
             return 5
+        case .fryingPan:
+            return 60
         case .jangdokdae:
             // 두 번째 재료 트리 해금 비용입니다. 플레이테스트 후 조정할 임시 가격입니다.
             return 30
@@ -34,6 +39,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         switch self {
         case .cookingPot:
             return .cookingPot
+        case .fryingPan:
+            return .fryingPan
         case .jangdokdae:
             return .jangdokdae
         }
@@ -45,7 +52,7 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         switch self {
         case .cookingPot:
             return .relightStove
-        case .jangdokdae:
+        case .fryingPan, .jangdokdae:
             return .restoreJangFlavor
         }
     }
@@ -58,6 +65,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         switch self {
         case .cookingPot:
             return "게임 시작부터 구매할 수 있습니다."
+        case .fryingPan:
+            return "수제비 첫 주문을 완료하면 구매할 수 있어요."
         case .jangdokdae:
             return "수제비 첫 주문을 완료하면 구매할 수 있어요."
         }
@@ -66,9 +75,11 @@ enum ShopProduct: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .cookingPot:
-            return "반죽을 넣어 수제비를 만들 수 있는\n영구 조리도구예요."
+            return "재료를 넣어 다양한 음식을 만드는\n영구 조리도구예요."
+        case .fryingPan:
+            return "반죽이나 떡을 구워 음식을 만드는\n영구 조리도구예요."
         case .jangdokdae:
-            return "선택한 뒤 다시 탭하면 고추를 만드는\n영구 생성기예요."
+            return "에너지를 사용해 고추를 만들어 내는\n영구 생성기예요."
         }
     }
 }

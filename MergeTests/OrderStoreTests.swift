@@ -26,11 +26,11 @@ struct OrderStoreTests {
         let store = OrderStore()
 
         #expect(!store.activeOrders.contains(where: { $0.templateID == "sujebi-order" }))
-        #expect(store.unlock(.sujebi))
+        #expect(store.unlock(.cooking(.sujebi)))
         #expect(store.activeOrders.count == 5)
         #expect(store.activeOrders.contains(where: { $0.templateID == "sujebi-order" }))
         #expect(Set(store.activeOrders.map(\.templateID)).count == 5)
-        #expect(!store.unlock(.sujebi))
+        #expect(!store.unlock(.cooking(.sujebi)))
         #expect(store.activeOrders.count == 5)
     }
 
