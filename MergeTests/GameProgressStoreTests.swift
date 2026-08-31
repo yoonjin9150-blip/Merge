@@ -53,6 +53,34 @@ struct GameProgressStoreTests {
         #expect(restoredStore.currentChapter == .restoreJangFlavor)
     }
 
+    @Test
+    func 장맛복구중첫떡볶이납품은베이킹챕터를해금한다() {
+        let store = GameProgressStore(
+            initialChapter: .restoreJangFlavor,
+            defaults: makeDefaults()
+        )
+        let tteokbokkiOrder = GameOrderTemplate.cooking(.tteokbokki).makeOrder()
+
+        #expect(store.recordCompletedOrder(tteokbokkiOrder))
+        #expect(store.currentChapter == .openBakery)
+        #expect(!store.recordCompletedOrder(tteokbokkiOrder))
+    }
+
+    @Test
+    func 장맛복구중다른주문은베이킹챕터를해금하지않는다() {
+        let store = GameProgressStore(
+            initialChapter: .restoreJangFlavor,
+            defaults: makeDefaults()
+        )
+
+        #expect(
+            !store.recordCompletedOrder(
+                GameOrderTemplate.cooking(.sujebi).makeOrder()
+            )
+        )
+        #expect(store.currentChapter == .restoreJangFlavor)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "GameProgressStoreTests.\(UUID().uuidString)"
         return UserDefaults(suiteName: suiteName)!

@@ -15,6 +15,9 @@ enum GameChapter: Int, Comparable {
     // 장독대를 해금하고 양념 머지 트리를 시작하는 단계입니다.
     case restoreJangFlavor = 2
 
+    // 베이킹 찬장을 해금하고 디저트 재료 트리를 시작하는 단계입니다.
+    case openBakery = 3
+
     static func < (lhs: GameChapter, rhs: GameChapter) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
@@ -53,16 +56,25 @@ final class GameProgressStore: ObservableObject {
         save()
     }
 
-    // 첫 수제비 납품은 챕터 1의 완료 조건입니다.
-    // 이미 다음 챕터라면 중복 호출되어도 상태를 다시 저장하거나 보상을 반복하지 않습니다.
+    // 각 챕터의 대표 음식 첫 납품을 완료 조건으로 사용합니다.
+    // 이미 다음 챕터라면 이전 조건이 중복 호출되어도 진행 상태를 다시 변경하지 않습니다.
     @discardableResult
     func recordCompletedOrder(_ order: GameOrder) -> Bool {
-        guard currentChapter == .relightStove,
-              order.templateID == GameOrderTemplate.cooking(.sujebi).templateID else {
+        switch currentChapter {
+        case .relightStove:
+            guard order.templateID == GameOrderTemplate.cooking(.sujebi).templateID else {
+                return false
+            }
+            currentChapter = .restoreJangFlavor
+        case .restoreJangFlavor:
+            guard order.templateID == GameOrderTemplate.cooking(.tteokbokki).templateID else {
+                return false
+            }
+            currentChapter = .openBakery
+        case .openBakery:
             return false
         }
 
-        currentChapter = .restoreJangFlavor
         save()
         return true
     }

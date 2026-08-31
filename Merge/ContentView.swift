@@ -245,7 +245,7 @@ struct ContentView: View {
                 return
             }
 
-            // 첫 수제비 납품을 챕터 1 완료로 기록해 장독대 구매를 해금합니다.
+            // 현재 챕터의 대표 음식 납품을 기록해 다음 콘텐츠를 해금합니다.
             gameProgressStore.recordCompletedOrder(order)
 
             // 완료 카드가 사라진 것을 먼저 보여 준 뒤 새 랜덤 주문으로 빈자리를 채웁니다.

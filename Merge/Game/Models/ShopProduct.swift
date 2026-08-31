@@ -9,6 +9,7 @@ enum ShopProduct: String, CaseIterable, Identifiable {
     case cookingPot
     case fryingPan
     case jangdokdae
+    case bakingCabinet
 
     var id: String { rawValue }
 
@@ -20,6 +21,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
             return "후라이팬"
         case .jangdokdae:
             return "장독대"
+        case .bakingCabinet:
+            return "베이킹 찬장"
         }
     }
 
@@ -32,6 +35,9 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         case .jangdokdae:
             // 두 번째 재료 트리 해금 비용입니다. 플레이테스트 후 조정할 임시 가격입니다.
             return 30
+        case .bakingCabinet:
+            // 세 번째 재료 트리의 첫 임시 가격으로, 경제 플레이테스트 후 조정합니다.
+            return 100
         }
     }
 
@@ -43,6 +49,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
             return .fryingPan
         case .jangdokdae:
             return .jangdokdae
+        case .bakingCabinet:
+            return .bakingCabinet
         }
     }
 
@@ -54,6 +62,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
             return .relightStove
         case .fryingPan, .jangdokdae:
             return .restoreJangFlavor
+        case .bakingCabinet:
+            return .openBakery
         }
     }
 
@@ -69,6 +79,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
             return "수제비 첫 주문을 완료하면 구매할 수 있어요."
         case .jangdokdae:
             return "수제비 첫 주문을 완료하면 구매할 수 있어요."
+        case .bakingCabinet:
+            return "첫 떡볶이 주문을 완료하면 구매할 수 있어요."
         }
     }
 
@@ -80,6 +92,8 @@ enum ShopProduct: String, CaseIterable, Identifiable {
             return "반죽이나 떡을 구워 음식을 만드는\n영구 조리도구예요."
         case .jangdokdae:
             return "에너지를 사용해 고추를 만들어 내는\n영구 생성기예요."
+        case .bakingCabinet:
+            return "에너지를 사용해 베이킹 재료를 만드는\n영구 생성기예요."
         }
     }
 }

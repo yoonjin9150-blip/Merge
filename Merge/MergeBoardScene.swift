@@ -378,7 +378,7 @@ final class MergeBoardScene: SKScene {
 
     // 상점 구매 전에 사용할 수 있는 빈 칸이 있고, 같은 영구 아이템이 아직 없는지 확인합니다.
     func canPlacePermanentItem(_ kind: BoardItemKind) -> Bool {
-        (kind.isCookingTool || kind == .jangdokdae)
+        kind.isShopPermanentItem
             && boardNode.parent != nil
             && boardState.items(of: kind).isEmpty
             && boardState.firstEmptyCell() != nil
@@ -407,7 +407,7 @@ final class MergeBoardScene: SKScene {
     // 구매 거래 도중 예상치 못한 저장 실패가 생겼을 때 보드 배치를 되돌리기 위한 함수입니다.
     @discardableResult
     func removePermanentItem(_ kind: BoardItemKind) -> Bool {
-        guard (kind.isCookingTool || kind == .jangdokdae),
+        guard kind.isShopPermanentItem,
               let item = boardState.items(of: kind).first else {
             return false
         }
@@ -645,7 +645,9 @@ final class MergeBoardScene: SKScene {
     private func spawnItemIfPossible(from generator: BoardItemNode) {
         // 생성기 종류가 무엇을 만드는지 확인합니다.
         // 밀·밀가루 같은 일반 재료를 다시 탭한 경우에는 아무것도 생성하지 않습니다.
-        guard let spawnedKind = generator.kind.spawnedItemKind,
+        guard let spawnedKind = generator.kind.spawnedItemKind(
+            randomUnit: Double.random(in: 0..<1)
+        ),
               let emptyCell = boardState.firstEmptyCell() else {
             return
         }
