@@ -39,6 +39,8 @@ struct ShopStoreTests {
             ShopProduct.bakingCabinet.description
                 == "에너지를 사용해 베이킹 재료를 만드는\n영구 생성기예요."
         )
+        #expect(ShopProduct.jangdokdae.lockedButtonTitle == "수제비 주문 완료 시 해금")
+        #expect(ShopProduct.bakingCabinet.lockedButtonTitle == "떡볶이 주문 완료 시 해금")
     }
 
     @Test

@@ -84,6 +84,17 @@ enum ShopProduct: String, CaseIterable, Identifiable {
         }
     }
 
+    var lockedButtonTitle: String {
+        switch self {
+        case .cookingPot:
+            return "게임 시작부터 해금"
+        case .fryingPan, .jangdokdae:
+            return "수제비 주문 완료 시 해금"
+        case .bakingCabinet:
+            return "떡볶이 주문 완료 시 해금"
+        }
+    }
+
     var description: String {
         switch self {
         case .cookingPot:

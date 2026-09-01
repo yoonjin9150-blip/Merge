@@ -30,6 +30,8 @@ struct ShopView: View {
                             .font(.system(size: 17, weight: .black, design: .rounded))
                             .foregroundStyle(outlineColor)
 
+                        chapterProgressCard
+
                         ForEach(ShopProduct.allCases) { product in
                             productCard(product)
                         }
@@ -50,6 +52,60 @@ struct ShopView: View {
                 }
             }
         }
+    }
+
+    private var chapterProgressCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(currentChapter.shortBadge)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 9)
+                    .frame(height: 25)
+                    .background {
+                        Capsule()
+                            .fill(Color(red: 0.96, green: 0.43, blue: 0.42))
+                    }
+
+                Text(currentChapter.title)
+                    .font(.system(size: 19, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor)
+            }
+
+            if let requirement = currentChapter.nextChapterRequirement,
+               let reward = currentChapter.nextChapterReward {
+                Text("다음 챕터로 가려면")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor.opacity(0.55))
+
+                Text(requirement)
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor)
+
+                Label(reward, systemImage: "sparkles")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(red: 0.74, green: 0.31, blue: 0.16))
+            } else {
+                Text("현재 공개된 마지막 챕터예요.")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .foregroundStyle(outlineColor)
+
+                Text("베이킹 찬장을 준비하고 새로운 재료를 발견해 보세요.")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(outlineColor.opacity(0.66))
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 310, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.72))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(outlineColor, lineWidth: 3)
+                }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func productCard(_ product: ShopProduct) -> some View {
@@ -170,7 +226,7 @@ struct ShopView: View {
         }
 
         if !isUnlocked {
-            return "🔒 잠김"
+            return "🔒 \(product.lockedButtonTitle)"
         }
 
         if coins < product.price {

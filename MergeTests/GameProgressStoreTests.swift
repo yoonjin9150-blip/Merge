@@ -12,6 +12,29 @@ import Testing
 @MainActor
 struct GameProgressStoreTests {
     @Test
+    func 챕터별로다음진행조건과해금보상을안내한다() {
+        #expect(GameChapter.relightStove.title == "화구 되살리기")
+        #expect(
+            GameChapter.relightStove.nextChapterRequirement
+                == "수제비 첫 주문을 완료하세요."
+        )
+        #expect(
+            GameChapter.relightStove.nextChapterReward
+                == "CH.2 · 장독대와 후라이팬 해금"
+        )
+        #expect(
+            GameChapter.restoreJangFlavor.nextChapterRequirement
+                == "떡볶이 첫 주문을 완료하세요."
+        )
+        #expect(
+            GameChapter.restoreJangFlavor.nextChapterReward
+                == "CH.3 · 베이킹 찬장 해금"
+        )
+        #expect(GameChapter.openBakery.nextChapterRequirement == nil)
+        #expect(GameChapter.openBakery.nextChapterReward == nil)
+    }
+
+    @Test
     func 새게임은화구복구챕터에서시작한다() {
         let defaults = makeDefaults()
 

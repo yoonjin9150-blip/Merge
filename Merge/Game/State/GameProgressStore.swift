@@ -25,6 +25,41 @@ enum GameChapter: Int, Comparable {
     var shortBadge: String {
         "CH.\(rawValue)"
     }
+
+    var title: String {
+        switch self {
+        case .relightStove:
+            return "화구 되살리기"
+        case .restoreJangFlavor:
+            return "장맛 되찾기"
+        case .openBakery:
+            return "베이킹 준비하기"
+        }
+    }
+
+    // 플레이어가 다음 챕터로 넘어가기 위해 지금 해야 하는 행동입니다.
+    // 아직 다음 챕터 규칙이 정해지지 않은 마지막 챕터에서는 nil입니다.
+    var nextChapterRequirement: String? {
+        switch self {
+        case .relightStove:
+            return "수제비 첫 주문을 완료하세요."
+        case .restoreJangFlavor:
+            return "떡볶이 첫 주문을 완료하세요."
+        case .openBakery:
+            return nil
+        }
+    }
+
+    var nextChapterReward: String? {
+        switch self {
+        case .relightStove:
+            return "CH.2 · 장독대와 후라이팬 해금"
+        case .restoreJangFlavor:
+            return "CH.3 · 베이킹 찬장 해금"
+        case .openBakery:
+            return nil
+        }
+    }
 }
 
 @MainActor
