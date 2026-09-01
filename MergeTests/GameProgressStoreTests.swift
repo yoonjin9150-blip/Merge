@@ -32,6 +32,16 @@ struct GameProgressStoreTests {
         )
         #expect(GameChapter.openBakery.nextChapterRequirement == nil)
         #expect(GameChapter.openBakery.nextChapterReward == nil)
+        #expect(
+            GameChapter.relightStove.storyOrderTemplateID
+                == GameOrderTemplate.cooking(.sujebi).templateID
+        )
+        #expect(
+            GameChapter.restoreJangFlavor.storyOrderTemplateID
+                == GameOrderTemplate.cooking(.tteokbokki).templateID
+        )
+        #expect(GameChapter.openBakery.storyOrderTemplateID == nil)
+        #expect(!GameChapter.restoreJangFlavor.storyDescription.isEmpty)
     }
 
     @Test

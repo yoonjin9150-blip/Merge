@@ -11,12 +11,14 @@ struct OrderCardView: View {
     let order: GameOrder
     let itemCounts: [BoardItemKind: Int]
     let isCompleting: Bool
+    let isStoryOrder: Bool
     let onComplete: (CGPoint) -> Void
 
     init(order: GameOrder) {
         self.order = order
         itemCounts = [:]
         isCompleting = false
+        isStoryOrder = false
         onComplete = { _ in }
     }
 
@@ -24,11 +26,13 @@ struct OrderCardView: View {
         order: GameOrder,
         itemCounts: [BoardItemKind: Int],
         isCompleting: Bool = false,
+        isStoryOrder: Bool = false,
         onComplete: @escaping (CGPoint) -> Void
     ) {
         self.order = order
         self.itemCounts = itemCounts
         self.isCompleting = isCompleting
+        self.isStoryOrder = isStoryOrder
         self.onComplete = onComplete
     }
 
@@ -58,13 +62,19 @@ struct OrderCardView: View {
         .frame(width: 120, height: cardHeight)
         .background {
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(red: 1, green: 0.97, blue: 0.85))
+                .fill(
+                    isStoryOrder
+                        ? Color(red: 1, green: 0.91, blue: 0.72)
+                        : Color(red: 1, green: 0.97, blue: 0.85)
+                )
                 .overlay {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(
                             isReady
                                 ? Color(red: 0.20, green: 0.72, blue: 0.36)
-                                : outlineColor,
+                                : isStoryOrder
+                                    ? Color(red: 0.96, green: 0.43, blue: 0.42)
+                                    : outlineColor,
                             lineWidth: 3
                         )
                 }
@@ -76,7 +86,7 @@ struct OrderCardView: View {
                 )
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(order.title)
+        .accessibilityLabel(isStoryOrder ? "스토리 주문, \(order.title)" : order.title)
         .accessibilityValue(
             isReady
                 ? "납품 준비 완료, 보상 \(order.coinReward)코인"
@@ -139,9 +149,13 @@ struct OrderCardView: View {
                 sideLength: 48
             )
 
-            Text(order.title)
+            Text(isStoryOrder ? "★ \(order.title)" : order.title)
                 .font(.system(size: 10, weight: .black, design: .rounded))
-                .foregroundStyle(outlineColor)
+                .foregroundStyle(
+                    isStoryOrder
+                        ? Color(red: 0.74, green: 0.22, blue: 0.15)
+                        : outlineColor
+                )
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }

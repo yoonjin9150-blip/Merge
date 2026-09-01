@@ -142,4 +142,21 @@ struct GameOrderTests {
 
         #expect(displayedOrders.map(\.id) == [flour.id, noodle.id, dough.id])
     }
+
+    @Test
+    func 준비되지않은스토리주문은완료가능주문다음으로먼저보인다() {
+        let noodle = GrainDeliveryOrder.noodle.makeOrder()
+        let flour = GrainDeliveryOrder.flour.makeOrder()
+        let story = GameOrderTemplate.cooking(.sujebi).makeOrder()
+        let dough = GrainDeliveryOrder.dough.makeOrder()
+
+        let displayedOrders = GameOrder.prioritizedForDisplay(
+            [noodle, flour, story, dough],
+            itemCounts: [.flour: 1],
+            completingOrderIDs: [],
+            storyOrderTemplateID: story.templateID
+        )
+
+        #expect(displayedOrders.map(\.id) == [flour.id, story.id, noodle.id, dough.id])
+    }
 }

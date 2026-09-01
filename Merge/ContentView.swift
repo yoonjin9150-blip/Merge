@@ -109,6 +109,7 @@ struct ContentView: View {
                         orders: activeOrders,
                         itemCounts: boardItemCounts,
                         completingOrderIDs: orderStore.completingOrderIDs,
+                        storyOrderTemplateID: gameProgressStore.currentChapter.storyOrderTemplateID,
                         onComplete: { order, target in
                             complete(order, toward: target)
                         }

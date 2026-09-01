@@ -37,6 +37,30 @@ enum GameChapter: Int, Comparable {
         }
     }
 
+    var storyDescription: String {
+        switch self {
+        case .relightStove:
+            return "먼지 쌓인 부엌에서 오래도록 꺼져 있던 화구를 발견했어요."
+        case .restoreJangFlavor:
+            return "가게를 대표하던 장맛이 사라져 예전의 떡볶이를 만들 수 없어요."
+        case .openBakery:
+            return "비어 있던 찬장에서 달콤한 재료의 흔적을 발견했어요."
+        }
+    }
+
+    // 챕터 진행과 직접 연결되는 핵심 주문입니다.
+    // 아직 완료 조건이 정해지지 않은 마지막 챕터에는 스토리 주문을 지정하지 않습니다.
+    var storyOrderTemplateID: String? {
+        switch self {
+        case .relightStove:
+            return GameOrderTemplate.cooking(.sujebi).templateID
+        case .restoreJangFlavor:
+            return GameOrderTemplate.cooking(.tteokbokki).templateID
+        case .openBakery:
+            return nil
+        }
+    }
+
     // 플레이어가 다음 챕터로 넘어가기 위해 지금 해야 하는 행동입니다.
     // 아직 다음 챕터 규칙이 정해지지 않은 마지막 챕터에서는 nil입니다.
     var nextChapterRequirement: String? {

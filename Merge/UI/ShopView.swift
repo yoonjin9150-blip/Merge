@@ -72,6 +72,11 @@ struct ShopView: View {
                     .foregroundStyle(outlineColor)
             }
 
+            Text(currentChapter.storyDescription)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(outlineColor.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+
             if let requirement = currentChapter.nextChapterRequirement,
                let reward = currentChapter.nextChapterReward {
                 Text("다음 챕터로 가려면")
