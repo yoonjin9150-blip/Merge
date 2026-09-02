@@ -11,13 +11,15 @@ struct OrderStripView: View {
     let orders: [GameOrder]
     let itemCounts: [BoardItemKind: Int]
     let completingOrderIDs: Set<UUID>
+    let storyOrderTemplateID: String?
     let onComplete: (GameOrder, CGPoint) -> Void
 
     private var displayedOrders: [GameOrder] {
         GameOrder.prioritizedForDisplay(
             orders,
             itemCounts: itemCounts,
-            completingOrderIDs: completingOrderIDs
+            completingOrderIDs: completingOrderIDs,
+            storyOrderTemplateID: storyOrderTemplateID
         )
     }
 
@@ -34,6 +36,7 @@ struct OrderStripView: View {
         orders: [GameOrder],
         itemCounts: [BoardItemKind: Int],
         completingOrderIDs: Set<UUID> = [],
+        storyOrderTemplateID: String? = nil,
         onComplete: @escaping (GameOrder, CGPoint) -> Void
     ) {
         precondition(
@@ -44,6 +47,7 @@ struct OrderStripView: View {
         self.orders = orders
         self.itemCounts = itemCounts
         self.completingOrderIDs = completingOrderIDs
+        self.storyOrderTemplateID = storyOrderTemplateID
         self.onComplete = onComplete
     }
 
@@ -56,6 +60,7 @@ struct OrderStripView: View {
                             order: order,
                             itemCounts: itemCounts,
                             isCompleting: completingOrderIDs.contains(order.id),
+                            isStoryOrder: order.templateID == storyOrderTemplateID,
                             onComplete: { target in
                                 onComplete(order, target)
                             }

@@ -172,6 +172,13 @@ final class MergeBoardScene: SKScene {
         }
     }
 
+    // 선택한 보드 아이템의 종류를 SwiftUI 하단 정보 패널에 전달합니다.
+    var onSelectedItemKindChanged: ((BoardItemKind?) -> Void)? {
+        didSet {
+            publishSelectedItemKind()
+        }
+    }
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -378,7 +385,7 @@ final class MergeBoardScene: SKScene {
 
     // 상점 구매 전에 사용할 수 있는 빈 칸이 있고, 같은 영구 아이템이 아직 없는지 확인합니다.
     func canPlacePermanentItem(_ kind: BoardItemKind) -> Bool {
-        (kind.isCookingTool || kind == .jangdokdae)
+        kind.isShopPermanentItem
             && boardNode.parent != nil
             && boardState.items(of: kind).isEmpty
             && boardState.firstEmptyCell() != nil
@@ -407,7 +414,7 @@ final class MergeBoardScene: SKScene {
     // 구매 거래 도중 예상치 못한 저장 실패가 생겼을 때 보드 배치를 되돌리기 위한 함수입니다.
     @discardableResult
     func removePermanentItem(_ kind: BoardItemKind) -> Bool {
-        guard (kind.isCookingTool || kind == .jangdokdae),
+        guard kind.isShopPermanentItem,
               let item = boardState.items(of: kind).first else {
             return false
         }
@@ -645,7 +652,9 @@ final class MergeBoardScene: SKScene {
     private func spawnItemIfPossible(from generator: BoardItemNode) {
         // 생성기 종류가 무엇을 만드는지 확인합니다.
         // 밀·밀가루 같은 일반 재료를 다시 탭한 경우에는 아무것도 생성하지 않습니다.
-        guard let spawnedKind = generator.kind.spawnedItemKind,
+        guard let spawnedKind = generator.kind.spawnedItemKind(
+            randomUnit: Double.random(in: 0..<1)
+        ),
               let emptyCell = boardState.firstEmptyCell() else {
             return
         }
@@ -777,6 +786,10 @@ final class MergeBoardScene: SKScene {
                 lockedKind: targetItem.kind
             ) {
             case let .merge(nextKind):
+                // 잠긴 아이템을 실제로 깨는 성공 순간에 재생합니다.
+                // 주변에 더 공개할 봉인 칸이 없는 마지막 바위에서도 소리가 빠지지 않습니다.
+                gameSoundPlayer.play(.brickBreak, on: self)
+
                 // 머지 결과는 일반 아이템이므로 목표 칸을 먼저 열린 상태로 바꿉니다.
                 boardState.setCellState(.open, at: targetCell)
                 let mergedItem = mergeItems(
@@ -1129,6 +1142,28 @@ final class MergeBoardScene: SKScene {
         return deliveryItems
     }
 
+    // 현재 선택한 일반 재료 또는 완성 음식을 보드에서 제거하고 판매가를 반환합니다.
+    // 잠긴 아이템과 영구 생성기·조리도구는 salePrice가 없거나 선택할 수 없어 이 흐름에 들어오지 않습니다.
+    @discardableResult
+    func sellSelectedItem() -> Int? {
+        guard let item = selectedItem,
+              !item.isLocked,
+              !item.isAwaitingSpawnArrival,
+              !item.isHidden,
+              !item.isCooking,
+              let salePrice = item.kind.salePrice else {
+            return nil
+        }
+
+        clearSelection()
+        boardState.removeItem(at: item.cell)
+        item.removeFromParent()
+        publishBoardItemState()
+        persistBoardProgress()
+        assertBoardItemsMatchStoredCells()
+        return salePrice
+    }
+
     // 장면의 모든 칸을 정렬된 스냅샷으로 저장합니다.
     // 조리 중인 재료는 이미 소비되고 완성품 칸이 예약되므로, 조리 전 loaded 상태만 복원 대상으로 남깁니다.
     func persistBoardProgress() {
@@ -1325,13 +1360,19 @@ final class MergeBoardScene: SKScene {
         clearSelection()
         selectedItem = item
         item.isSelected = true
+        publishSelectedItemKind()
         publishCookingToolSelection()
     }
 
     private func clearSelection() {
         selectedItem?.isSelected = false
         selectedItem = nil
+        publishSelectedItemKind()
         publishCookingToolSelection()
+    }
+
+    private func publishSelectedItemKind() {
+        onSelectedItemKindChanged?(selectedItem?.kind)
     }
 
     private func publishCookingToolSelection() {

@@ -12,14 +12,17 @@ import Testing
 @MainActor
 struct ShopStoreTests {
     @Test
-    func 냄비는첫챕터부터열리고후라이팬과장독대는두번째챕터에서열린다() {
+    func 상품은각챕터에맞춰순서대로열린다() {
         #expect(ShopProduct.cookingPot.isUnlocked(in: .relightStove))
         #expect(!ShopProduct.fryingPan.isUnlocked(in: .relightStove))
         #expect(!ShopProduct.jangdokdae.isUnlocked(in: .relightStove))
         #expect(ShopProduct.fryingPan.isUnlocked(in: .restoreJangFlavor))
         #expect(ShopProduct.jangdokdae.isUnlocked(in: .restoreJangFlavor))
+        #expect(!ShopProduct.bakingCabinet.isUnlocked(in: .restoreJangFlavor))
+        #expect(ShopProduct.bakingCabinet.isUnlocked(in: .openBakery))
         #expect(ShopProduct.fryingPan.requiredChapter.shortBadge == "CH.2")
         #expect(ShopProduct.jangdokdae.requiredChapter.shortBadge == "CH.2")
+        #expect(ShopProduct.bakingCabinet.requiredChapter.shortBadge == "CH.3")
     }
 
     @Test
@@ -32,6 +35,12 @@ struct ShopStoreTests {
             ShopProduct.jangdokdae.description
                 == "에너지를 사용해 고추를 만들어 내는\n영구 생성기예요."
         )
+        #expect(
+            ShopProduct.bakingCabinet.description
+                == "에너지를 사용해 베이킹 재료를 만드는\n영구 생성기예요."
+        )
+        #expect(ShopProduct.jangdokdae.lockedButtonTitle == "수제비 주문 완료 시 해금")
+        #expect(ShopProduct.bakingCabinet.lockedButtonTitle == "떡볶이 주문 완료 시 해금")
     }
 
     @Test
@@ -50,6 +59,12 @@ struct ShopStoreTests {
     func 후라이팬상품은육십코인이며후라이팬보드아이템과연결된다() {
         #expect(ShopProduct.fryingPan.price == 60)
         #expect(ShopProduct.fryingPan.boardItemKind == .fryingPan)
+    }
+
+    @Test
+    func 베이킹찬장상품은임시백코인이며생성기와연결된다() {
+        #expect(ShopProduct.bakingCabinet.price == 100)
+        #expect(ShopProduct.bakingCabinet.boardItemKind == .bakingCabinet)
     }
 
     @Test
@@ -99,5 +114,21 @@ struct ShopStoreTests {
         let restoredStore = ShopStore(defaults: defaults)
         #expect(restoredStore.isPurchased(.fryingPan))
         #expect(!restoredStore.markPurchased(.fryingPan))
+    }
+
+    @Test
+    func 구매한베이킹찬장은앱을다시실행해도복원된다() {
+        let suiteName = "ShopStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let firstStore = ShopStore(defaults: defaults)
+        #expect(firstStore.markPurchased(.bakingCabinet))
+
+        let restoredStore = ShopStore(defaults: defaults)
+        #expect(restoredStore.isPurchased(.bakingCabinet))
+        #expect(!restoredStore.markPurchased(.bakingCabinet))
     }
 }

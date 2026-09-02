@@ -29,6 +29,17 @@ struct BoardItemKindTests {
     }
 
     @Test
+    func 베이킹재료는설탕부터초콜릿까지일곱단계로연결된다() {
+        #expect(BoardItemKind.sugar.nextKind == .egg)
+        #expect(BoardItemKind.egg.nextKind == .milk)
+        #expect(BoardItemKind.milk.nextKind == .butter)
+        #expect(BoardItemKind.butter.nextKind == .whippedCream)
+        #expect(BoardItemKind.whippedCream.nextKind == .cheese)
+        #expect(BoardItemKind.cheese.nextKind == .chocolate)
+        #expect(BoardItemKind.chocolate.nextKind == nil)
+    }
+
+    @Test
     func 떡과생성기와조리도구는다음머지단계가없다() {
         #expect(BoardItemKind.riceCake.nextKind == nil)
         #expect(BoardItemKind.grainSack.nextKind == nil)
@@ -39,27 +50,22 @@ struct BoardItemKindTests {
     }
 
     @Test
-    func 생성기별로첫단계재료만생성한다() {
-        #expect(BoardItemKind.grainSack.spawnedItemKind == .wheat)
-        #expect(BoardItemKind.jangdokdae.spawnedItemKind == .chiliPepper)
-        #expect(BoardItemKind.cookingPot.spawnedItemKind == nil)
-        #expect(BoardItemKind.fryingPan.spawnedItemKind == nil)
-        #expect(BoardItemKind.wheat.spawnedItemKind == nil)
-        #expect(BoardItemKind.flour.spawnedItemKind == nil)
-        #expect(BoardItemKind.dough.spawnedItemKind == nil)
-        #expect(BoardItemKind.noodle.spawnedItemKind == nil)
-        #expect(BoardItemKind.riceCake.spawnedItemKind == nil)
-        #expect(BoardItemKind.sujebi.spawnedItemKind == nil)
-        #expect(BoardItemKind.chiliPepper.spawnedItemKind == nil)
-        #expect(BoardItemKind.chiliPowder.spawnedItemKind == nil)
-        #expect(BoardItemKind.gochujang.spawnedItemKind == nil)
-        #expect(BoardItemKind.seasoningSauce.spawnedItemKind == nil)
+    func 생성기별가중치에따라재료를생성한다() {
+        #expect(BoardItemKind.grainSack.spawnedItemKind(randomUnit: 0.99) == .wheat)
+        #expect(BoardItemKind.jangdokdae.spawnedItemKind(randomUnit: 0.99) == .chiliPepper)
+        #expect(BoardItemKind.bakingCabinet.spawnedItemKind(randomUnit: 0) == .sugar)
+        #expect(BoardItemKind.bakingCabinet.spawnedItemKind(randomUnit: 0.8999) == .sugar)
+        #expect(BoardItemKind.bakingCabinet.spawnedItemKind(randomUnit: 0.9) == .egg)
+        #expect(BoardItemKind.bakingCabinet.spawnedItemKind(randomUnit: 0.9999) == .egg)
+        #expect(BoardItemKind.cookingPot.spawnedItemKind(randomUnit: 0.5) == nil)
+        #expect(BoardItemKind.sugar.spawnedItemKind(randomUnit: 0.5) == nil)
     }
 
     @Test
-    func 곡물포대와장독대만생성기로분류된다() {
+    func 곡물포대와장독대와베이킹찬장만생성기로분류된다() {
         #expect(BoardItemKind.grainSack.isGenerator)
         #expect(BoardItemKind.jangdokdae.isGenerator)
+        #expect(BoardItemKind.bakingCabinet.isGenerator)
         #expect(!BoardItemKind.wheat.isGenerator)
         #expect(!BoardItemKind.flour.isGenerator)
         #expect(!BoardItemKind.dough.isGenerator)
@@ -82,6 +88,16 @@ struct BoardItemKindTests {
     }
 
     @Test
+    func 상점영구아이템은초기곡물포대와구분된다() {
+        #expect(BoardItemKind.cookingPot.isShopPermanentItem)
+        #expect(BoardItemKind.fryingPan.isShopPermanentItem)
+        #expect(BoardItemKind.jangdokdae.isShopPermanentItem)
+        #expect(BoardItemKind.bakingCabinet.isShopPermanentItem)
+        #expect(!BoardItemKind.grainSack.isShopPermanentItem)
+        #expect(!BoardItemKind.sugar.isShopPermanentItem)
+    }
+
+    @Test
     func 완성음식은머지재료가아닌음식으로분류된다() {
         let dishes: [BoardItemKind] = [
             .sujebi,
@@ -99,15 +115,16 @@ struct BoardItemKindTests {
             #expect(!dish.isCookingTool)
             #expect(!dish.isMaximumMergeLevel)
             #expect(dish.nextKind == nil)
-            #expect(dish.spawnedItemKind == nil)
+            #expect(dish.spawnedItemKind(randomUnit: 0.5) == nil)
             #expect(dish.requiredMergeCount == nil)
         }
     }
 
     @Test
-    func 떡과양념장이각머지트리의최고레벨이다() {
+    func 떡과양념장과초콜릿이각머지트리의최고레벨이다() {
         #expect(BoardItemKind.riceCake.isMaximumMergeLevel)
         #expect(BoardItemKind.seasoningSauce.isMaximumMergeLevel)
+        #expect(BoardItemKind.chocolate.isMaximumMergeLevel)
         #expect(!BoardItemKind.grainSack.isMaximumMergeLevel)
         #expect(!BoardItemKind.wheat.isMaximumMergeLevel)
         #expect(!BoardItemKind.flour.isMaximumMergeLevel)
@@ -126,6 +143,7 @@ struct BoardItemKindTests {
         let expectedTextures: [(BoardItemKind, String)] = [
             (.grainSack, "GrainSackPixel"),
             (.jangdokdae, "JangdokdaePixel"),
+            (.bakingCabinet, "BakingCabinetPixel"),
             (.cookingPot, "CookingPotPixel"),
             (.fryingPan, "FryingPanPixel"),
             (.wheat, "WheatPixel"),
@@ -137,6 +155,13 @@ struct BoardItemKindTests {
             (.chiliPowder, "ChiliPowderPixel"),
             (.gochujang, "GochujangPixel"),
             (.seasoningSauce, "SeasoningSaucePixel"),
+            (.sugar, "SugarPixel"),
+            (.egg, "EggPixel"),
+            (.milk, "MilkPixel"),
+            (.butter, "ButterPixel"),
+            (.whippedCream, "WhippedCreamPixel"),
+            (.cheese, "CheesePixel"),
+            (.chocolate, "ChocolatePixel"),
             (.sujebi, "SujebiPixel"),
             (.kalguksu, "KalguksuPixel"),
             (.ramyeon, "RamyeonPixel"),
@@ -170,6 +195,13 @@ struct BoardItemKindTests {
         #expect(BoardItemKind.chiliPowder.requiredMergeCount == 1)
         #expect(BoardItemKind.gochujang.requiredMergeCount == 3)
         #expect(BoardItemKind.seasoningSauce.requiredMergeCount == 7)
+        #expect(BoardItemKind.sugar.requiredMergeCount == 0)
+        #expect(BoardItemKind.egg.requiredMergeCount == 1)
+        #expect(BoardItemKind.milk.requiredMergeCount == 3)
+        #expect(BoardItemKind.butter.requiredMergeCount == 7)
+        #expect(BoardItemKind.whippedCream.requiredMergeCount == 15)
+        #expect(BoardItemKind.cheese.requiredMergeCount == 31)
+        #expect(BoardItemKind.chocolate.requiredMergeCount == 63)
     }
 
     @Test

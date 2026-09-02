@@ -10,6 +10,7 @@ import SpriteKit
 enum GameSoundEffect: Equatable {
     case merge(MergeNote)
     case generatorSpawn
+    case brickBreak
 
     var soundFileName: String {
         switch self {
@@ -17,6 +18,8 @@ enum GameSoundEffect: Equatable {
             return note.soundFileName
         case .generatorSpawn:
             return "generator_spawn_pop.wav"
+        case .brickBreak:
+            return "brick_break.wav"
         }
     }
 }

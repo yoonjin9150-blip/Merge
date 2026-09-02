@@ -106,6 +106,23 @@ struct OrderStoreTests {
     }
 
     @Test
+    func 판매대금은코인에더해지고저장된다() {
+        let defaults = makeDefaults()
+        let store = OrderStore(
+            initialOrders: [],
+            initialCoins: 5,
+            defaults: defaults
+        )
+
+        store.addSaleProceeds(2)
+
+        #expect(store.coins == 7)
+        #expect(
+            OrderStore(initialOrders: [], defaults: defaults).coins == 7
+        )
+    }
+
+    @Test
     func 같은주문은완료처리를동시에두번시작할수없다() {
         let order = GameOrder.flourDelivery
         let store = OrderStore(initialOrders: [order])

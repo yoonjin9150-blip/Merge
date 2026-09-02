@@ -61,22 +61,48 @@ struct GameOrder: Identifiable, Equatable {
     static func prioritizedForDisplay(
         _ orders: [GameOrder],
         itemCounts: [BoardItemKind: Int],
-        completingOrderIDs: Set<UUID>
+        completingOrderIDs: Set<UUID>,
+        storyOrderTemplateID: String? = nil
     ) -> [GameOrder] {
         orders.enumerated()
             .sorted { first, second in
-                let firstIsPrioritized = completingOrderIDs.contains(first.element.id)
-                    || first.element.isReady(in: itemCounts)
-                let secondIsPrioritized = completingOrderIDs.contains(second.element.id)
-                    || second.element.isReady(in: itemCounts)
+                let firstPriority = displayPriority(
+                    for: first.element,
+                    itemCounts: itemCounts,
+                    completingOrderIDs: completingOrderIDs,
+                    storyOrderTemplateID: storyOrderTemplateID
+                )
+                let secondPriority = displayPriority(
+                    for: second.element,
+                    itemCounts: itemCounts,
+                    completingOrderIDs: completingOrderIDs,
+                    storyOrderTemplateID: storyOrderTemplateID
+                )
 
-                if firstIsPrioritized == secondIsPrioritized {
+                if firstPriority == secondPriority {
                     return first.offset < second.offset
                 }
 
-                return firstIsPrioritized && !secondIsPrioritized
+                return firstPriority < secondPriority
             }
             .map(\.element)
+    }
+
+    private static func displayPriority(
+        for order: GameOrder,
+        itemCounts: [BoardItemKind: Int],
+        completingOrderIDs: Set<UUID>,
+        storyOrderTemplateID: String?
+    ) -> Int {
+        if completingOrderIDs.contains(order.id) || order.isReady(in: itemCounts) {
+            return 0
+        }
+
+        if order.templateID == storyOrderTemplateID {
+            return 1
+        }
+
+        return 2
     }
 
     // 튜토리얼에서 처음 제시할 주문입니다.
