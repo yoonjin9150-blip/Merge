@@ -779,6 +779,10 @@ final class MergeBoardScene: SKScene {
                 lockedKind: targetItem.kind
             ) {
             case let .merge(nextKind):
+                // 잠긴 아이템을 실제로 깨는 성공 순간에 재생합니다.
+                // 주변에 더 공개할 봉인 칸이 없는 마지막 바위에서도 소리가 빠지지 않습니다.
+                gameSoundPlayer.play(.brickBreak, on: self)
+
                 // 머지 결과는 일반 아이템이므로 목표 칸을 먼저 열린 상태로 바꿉니다.
                 boardState.setCellState(.open, at: targetCell)
                 let mergedItem = mergeItems(

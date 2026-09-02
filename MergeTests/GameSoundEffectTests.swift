@@ -21,13 +21,19 @@ struct GameSoundEffectTests {
     }
 
     @Test
+    func 벽돌파괴는전용효과음을사용한다() {
+        #expect(GameSoundEffect.brickBreak.soundFileName == "brick_break.wav")
+    }
+
+    @Test
     func 머지음계와스폰효과음은앱번들에포함된다() {
         let effects: [GameSoundEffect] = [
             .merge(.doNote),
             .merge(.reNote),
             .merge(.miNote),
             .merge(.faNote),
-            .generatorSpawn
+            .generatorSpawn,
+            .brickBreak
         ]
 
         for effect in effects {
