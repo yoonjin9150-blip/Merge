@@ -359,6 +359,130 @@ enum BoardItemKind: String, Codable, Hashable {
         }
     }
 
+    // 선택 정보와 머지 트리 팝업이 함께 사용하는 전체 재료 단계입니다.
+    // 생성기를 선택하면 생성 가능한 재료 트리를, 재료를 선택하면 자신이 속한 전체 트리를 반환합니다.
+    var mergeTreeKinds: [BoardItemKind] {
+        switch self {
+        case .grainSack, .wheat, .flour, .dough, .noodle, .riceCake:
+            return [.wheat, .flour, .dough, .noodle, .riceCake]
+        case .jangdokdae, .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce:
+            return [.chiliPepper, .chiliPowder, .gochujang, .seasoningSauce]
+        case .bakingCabinet, .sugar, .egg, .milk, .butter, .whippedCream, .cheese,
+             .chocolate:
+            return [.sugar, .egg, .milk, .butter, .whippedCream, .cheese, .chocolate]
+        case .cookingPot, .fryingPan, .sujebi, .kalguksu, .ramyeon, .tteokbokki,
+             .hotteok, .tteokKkochi, .gireumTteokbokki:
+            return []
+        }
+    }
+
+    var mergeTreeTitle: String? {
+        switch self {
+        case .grainSack, .wheat, .flour, .dough, .noodle, .riceCake:
+            return "곡물 재료"
+        case .jangdokdae, .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce:
+            return "장 재료"
+        case .bakingCabinet, .sugar, .egg, .milk, .butter, .whippedCream, .cheese,
+             .chocolate:
+            return "베이킹 재료"
+        case .cookingPot, .fryingPan, .sujebi, .kalguksu, .ramyeon, .tteokbokki,
+             .hotteok, .tteokKkochi, .gireumTteokbokki:
+            return nil
+        }
+    }
+
+    var mergeTreeGeneratorKind: BoardItemKind? {
+        switch self {
+        case .grainSack, .wheat, .flour, .dough, .noodle, .riceCake:
+            return .grainSack
+        case .jangdokdae, .chiliPepper, .chiliPowder, .gochujang, .seasoningSauce:
+            return .jangdokdae
+        case .bakingCabinet, .sugar, .egg, .milk, .butter, .whippedCream, .cheese,
+             .chocolate:
+            return .bakingCabinet
+        case .cookingPot, .fryingPan, .sujebi, .kalguksu, .ramyeon, .tteokbokki,
+             .hotteok, .tteokKkochi, .gireumTteokbokki:
+            return nil
+        }
+    }
+
+    var informationTitle: String {
+        switch role {
+        case .generator:
+            return "\(displayName) · 생성기"
+        case .cookingTool:
+            return "\(displayName) · 조리도구"
+        case .dish:
+            return "\(displayName) · 완성 음식"
+        case .ingredient:
+            guard let stageIndex = mergeTreeKinds.firstIndex(of: self) else {
+                return displayName
+            }
+
+            return "\(displayName) · \(stageIndex + 1)단계"
+        }
+    }
+
+    // 판매는 주문 대신 보드를 정리할 때 쓰는 보조 수단이므로 납품 보상보다 낮게 책정합니다.
+    // 영구 생성기와 조리도구는 진행 상태가 사라지지 않도록 판매할 수 없습니다.
+    var salePrice: Int? {
+        switch role {
+        case .generator, .cookingTool:
+            return nil
+        case .dish:
+            return 3
+        case .ingredient:
+            guard let stageIndex = mergeTreeKinds.firstIndex(of: self) else {
+                return nil
+            }
+
+            switch stageIndex + 1 {
+            case 1...3:
+                return 1
+            case 4...5:
+                return 2
+            case 6:
+                return 4
+            default:
+                return 6
+            }
+        }
+    }
+
+    var informationDescription: String {
+        switch role {
+        case .generator:
+            switch self {
+            case .grainSack:
+                return "탭하면 밀을 만드는 생성기예요."
+            case .jangdokdae:
+                return "탭하면 고추를 만드는 생성기예요."
+            case .bakingCabinet:
+                return "탭하면 설탕 또는 달걀을 만드는 생성기예요."
+            default:
+                preconditionFailure("생성기 설명이 정의되지 않았습니다.")
+            }
+
+        case .cookingTool:
+            return "재료를 넣고 요리해 완성 음식을 만드는 영구 조리도구예요."
+
+        case .dish:
+            return "조리도구로 만든 완성 음식이에요. 준비된 주문에 납품할 수 있어요."
+
+        case .ingredient:
+            guard let stageIndex = mergeTreeKinds.firstIndex(of: self) else {
+                return "같은 재료 두 개를 합쳐 다음 단계로 만들 수 있어요."
+            }
+
+            let stageText = "\(stageIndex + 1)/\(mergeTreeKinds.count)단계"
+            if let nextKind {
+                return "\(stageText) · 같은 \(displayName) 두 개를 합치면 \(nextKind.displayName)이 돼요."
+            }
+
+            return "\(stageText) · 이 머지 트리의 최고 단계 재료예요."
+        }
+    }
+
     // 생성기에서 나오는 1단계 재료 두 개부터 이 단계 하나를 만들 때 필요한 누적 머지 횟수입니다.
     // 2단계부터 1, 3, 7, 15, 31, 63으로 증가하며 주문 난이도와 보상 계산의 기준이 됩니다.
     var requiredMergeCount: Int? {

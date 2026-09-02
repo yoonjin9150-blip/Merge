@@ -172,6 +172,13 @@ final class MergeBoardScene: SKScene {
         }
     }
 
+    // 선택한 보드 아이템의 종류를 SwiftUI 하단 정보 패널에 전달합니다.
+    var onSelectedItemKindChanged: ((BoardItemKind?) -> Void)? {
+        didSet {
+            publishSelectedItemKind()
+        }
+    }
+
     // MARK: - Scene Life Cycle
 
     override func didMove(to view: SKView) {
@@ -1135,6 +1142,28 @@ final class MergeBoardScene: SKScene {
         return deliveryItems
     }
 
+    // 현재 선택한 일반 재료 또는 완성 음식을 보드에서 제거하고 판매가를 반환합니다.
+    // 잠긴 아이템과 영구 생성기·조리도구는 salePrice가 없거나 선택할 수 없어 이 흐름에 들어오지 않습니다.
+    @discardableResult
+    func sellSelectedItem() -> Int? {
+        guard let item = selectedItem,
+              !item.isLocked,
+              !item.isAwaitingSpawnArrival,
+              !item.isHidden,
+              !item.isCooking,
+              let salePrice = item.kind.salePrice else {
+            return nil
+        }
+
+        clearSelection()
+        boardState.removeItem(at: item.cell)
+        item.removeFromParent()
+        publishBoardItemState()
+        persistBoardProgress()
+        assertBoardItemsMatchStoredCells()
+        return salePrice
+    }
+
     // 장면의 모든 칸을 정렬된 스냅샷으로 저장합니다.
     // 조리 중인 재료는 이미 소비되고 완성품 칸이 예약되므로, 조리 전 loaded 상태만 복원 대상으로 남깁니다.
     func persistBoardProgress() {
@@ -1331,13 +1360,19 @@ final class MergeBoardScene: SKScene {
         clearSelection()
         selectedItem = item
         item.isSelected = true
+        publishSelectedItemKind()
         publishCookingToolSelection()
     }
 
     private func clearSelection() {
         selectedItem?.isSelected = false
         selectedItem = nil
+        publishSelectedItemKind()
         publishCookingToolSelection()
+    }
+
+    private func publishSelectedItemKind() {
+        onSelectedItemKindChanged?(selectedItem?.kind)
     }
 
     private func publishCookingToolSelection() {

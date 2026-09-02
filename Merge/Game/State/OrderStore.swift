@@ -94,6 +94,13 @@ final class OrderStore: ObservableObject {
         return true
     }
 
+    // 보드 아이템 판매가 확정된 뒤 받은 코인을 저장값까지 즉시 반영합니다.
+    func addSaleProceeds(_ amount: Int) {
+        precondition(amount > 0, "판매 대금은 1코인 이상이어야 합니다.")
+        coins += amount
+        saveCoins()
+    }
+
     func cancelCompletion(of order: GameOrder) {
         completingOrderIDs.remove(order.id)
     }

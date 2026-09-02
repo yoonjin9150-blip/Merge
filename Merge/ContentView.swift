@@ -19,6 +19,11 @@ private enum OrderCompletionTiming {
     static let replenishmentDelayNanoseconds: UInt64 = 30_000_000_000
 }
 
+private struct MergeTreePresentation: Identifiable {
+    let id = UUID()
+    let kind: BoardItemKind
+}
+
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
@@ -44,6 +49,8 @@ struct ContentView: View {
     @State private var boardItemCounts: [BoardItemKind: Int] = [:]
     @State private var deliveryEffects: [OrderDeliveryEffect] = []
     @State private var cookingToolSelection: CookingToolSelectionState?
+    @State private var selectedBoardItemKind: BoardItemKind?
+    @State private var mergeTreePresentation: MergeTreePresentation?
 
     // SpriteKit 게임판입니다. 화면 크기에 맞춰 장면의 크기도 바뀝니다.
     @State private var boardScene: MergeBoardScene = {
@@ -126,7 +133,7 @@ struct ContentView: View {
                     options: [.allowsTransparency]
                 )
 
-                // 재료가 들어 있는 조리도구를 선택했을 때만 조리 제어판을 표시합니다.
+                // 조리 중인 도구는 조작 패널을, 그 밖의 선택 아이템은 이름과 설명을 표시합니다.
                 if let cookingToolSelection {
                     CookingControlView(
                         state: cookingToolSelection,
@@ -135,6 +142,19 @@ struct ContentView: View {
                         },
                         onCook: {
                             boardScene.cookSelectedTool()
+                        }
+                    )
+                    .frame(height: 76)
+                } else if let selectedBoardItemKind {
+                    SelectedItemInfoView(
+                        kind: selectedBoardItemKind,
+                        onShowMergeTree: {
+                            mergeTreePresentation = MergeTreePresentation(
+                                kind: selectedBoardItemKind
+                            )
+                        },
+                        onSell: {
+                            sellSelectedItem()
                         }
                     )
                     .frame(height: 76)
@@ -164,6 +184,9 @@ struct ContentView: View {
             }
             boardScene.onCookingToolSelectionChanged = { state in
                 cookingToolSelection = state
+            }
+            boardScene.onSelectedItemKindChanged = { kind in
+                selectedBoardItemKind = kind
             }
             synchronizePurchasedBoardItems(shopStore.purchasedProducts)
             energyStore.refresh()
@@ -210,6 +233,10 @@ struct ContentView: View {
             )
             .presentationDetents([.large])
         }
+        .sheet(item: $mergeTreePresentation) { presentation in
+            MergeTreeView(selectedKind: presentation.kind)
+                .presentationDetents([.large])
+        }
     }
 
     private func complete(_ order: GameOrder, toward target: CGPoint) {
@@ -255,6 +282,14 @@ struct ContentView: View {
             )
             orderStore.replenishOneOrder()
         }
+    }
+
+    private func sellSelectedItem() {
+        guard let salePrice = boardScene.sellSelectedItem() else {
+            return
+        }
+
+        orderStore.addSaleProceeds(salePrice)
     }
 
     private func purchase(_ product: ShopProduct) -> Bool {
